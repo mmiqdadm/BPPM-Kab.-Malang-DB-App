@@ -28,7 +28,14 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'Prompt pesan tidak boleh kosong.' });
     }
 
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
 
     // Format compact summary of database for AI context
     const membersCompact = (membersContext || []).map((m: any) => ({
@@ -73,29 +80,41 @@ ${JSON.stringify(membersCompact)}
       parts: [{ text: prompt }],
     });
 
-    let response;
-    try {
-      response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents,
-        config: {
-          systemInstruction,
-          temperature: 0.3,
-        },
-      });
-    } catch (e) {
-      console.warn('Fallback to gemini-1.5-flash:', e);
-      response = await ai.models.generateContent({
-        model: 'gemini-1.5-flash',
-        contents,
-        config: {
-          systemInstruction,
-          temperature: 0.3,
-        },
-      });
+    // Candidate models list in order of preference
+    const CANDIDATE_MODELS = [
+      'gemini-2.0-flash',
+      'gemini-1.5-flash-latest',
+      'gemini-2.0-flash-lite',
+      'gemini-1.5-flash',
+      'gemini-1.5-pro',
+    ];
+
+    let answerText = '';
+    let lastErr = null;
+
+    for (const modelCandidate of CANDIDATE_MODELS) {
+      try {
+        const response = await ai.models.generateContent({
+          model: modelCandidate,
+          contents,
+          config: {
+            systemInstruction,
+            temperature: 0.3,
+          },
+        });
+        if (response && response.text) {
+          answerText = response.text;
+          break;
+        }
+      } catch (err: any) {
+        console.warn(`Vercel Model candidate ${modelCandidate} failed:`, err?.message || err);
+        lastErr = err;
+      }
     }
 
-    const answerText = response.text || 'Maaf, tidak dapat menghasilkan jawaban saat ini.';
+    if (!answerText) {
+      throw lastErr || new Error('Tidak ada model Gemini yang dapat memproses permintaan.');
+    }
     return res.status(200).json({ text: answerText });
   } catch (err: any) {
     console.error('Error handling Vercel AI analytics:', err);
