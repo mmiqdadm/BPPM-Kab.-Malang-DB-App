@@ -73,14 +73,27 @@ ${JSON.stringify(membersCompact)}
       parts: [{ text: prompt }],
     });
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents,
-      config: {
-        systemInstruction,
-        temperature: 0.3,
-      },
-    });
+    let response;
+    try {
+      response = await ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents,
+        config: {
+          systemInstruction,
+          temperature: 0.3,
+        },
+      });
+    } catch (e) {
+      console.warn('Fallback to gemini-1.5-flash:', e);
+      response = await ai.models.generateContent({
+        model: 'gemini-1.5-flash',
+        contents,
+        config: {
+          systemInstruction,
+          temperature: 0.3,
+        },
+      });
+    }
 
     const answerText = response.text || 'Maaf, tidak dapat menghasilkan jawaban saat ini.';
     return res.status(200).json({ text: answerText });

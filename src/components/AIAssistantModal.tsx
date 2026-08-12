@@ -283,7 +283,7 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
               <div className="flex items-center space-x-2">
                 <h3 className="font-bold text-sm sm:text-base tracking-tight">AI Assistant Analitik</h3>
                 <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-400/30">
-                  Gemini 3.6 Flash
+                  Gemini 2.0 Flash
                 </span>
               </div>
               <p className="text-[11px] text-slate-300">
