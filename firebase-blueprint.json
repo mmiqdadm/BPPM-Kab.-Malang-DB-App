@@ -1,0 +1,164 @@
+{
+  "entities": {
+    "member": {
+      "title": "Member",
+      "description": "Anggota Youth Wing PKS Kabupaten Malang",
+      "type": "object",
+      "properties": {
+        "nama": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 150,
+          "description": "Nama lengkap anggota"
+        },
+        "nomorHp": {
+          "type": "string",
+          "maxLength": 30,
+          "description": "Nomor HP atau WhatsApp"
+        },
+        "organisasiInternal": {
+          "type": "array",
+          "description": "Daftar organisasi internal"
+        },
+        "tglLahir": {
+          "type": "string",
+          "description": "Tanggal lahir YYYY-MM-DD"
+        },
+        "sosmed": {
+          "type": "object",
+          "description": "Akun sosial media"
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 150,
+          "description": "Email anggota"
+        },
+        "domisili": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Kecamatan domisili"
+        },
+        "alamatDetail": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Alamat detail"
+        },
+        "aktivitas": {
+          "type": "string",
+          "maxLength": 150,
+          "description": "Aktivitas / Pekerjaan"
+        },
+        "pendidikan": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Pendidikan terakhir"
+        },
+        "jurusan": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Jurusan"
+        },
+        "keahlian": {
+          "type": "array",
+          "description": "List keahlian"
+        },
+        "hobi": {
+          "type": "array",
+          "description": "List hobi"
+        },
+        "pembinaan": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Status pembinaan"
+        },
+        "catatanTambahan": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Catatan tambahan"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Waktu pembuatan"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Waktu pembaruan"
+        },
+        "createdBy": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Admin pembuat"
+        }
+      },
+      "required": ["nama", "domisili", "pendidikan", "pembinaan"]
+    },
+    "admin": {
+      "title": "AdminUser",
+      "description": "Akun admin sekretariat BPPM PKS",
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 50,
+          "description": "Username admin"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 100,
+          "description": "Nama lengkap admin"
+        },
+        "passwordHash": {
+          "type": "string",
+          "description": "Hash password"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["superadmin", "admin"],
+          "description": "Role hak akses"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Waktu pendaftaran"
+        }
+      },
+      "required": ["username", "name", "passwordHash", "role"]
+    },
+    "setting": {
+      "title": "Setting",
+      "description": "Pengaturan umum aplikasi seperti daftar keahlian dan hobi kustom",
+      "type": "object",
+      "properties": {
+        "skills": {
+          "type": "array",
+          "description": "Daftar tag keahlian kustom"
+        },
+        "hobbies": {
+          "type": "array",
+          "description": "Daftar tag hobi kustom"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/members/{memberId}": {
+      "schema": {
+        "$ref": "#/entities/member"
+      },
+      "description": "Koleksi data anggota youth wing"
+    },
+    "/admins/{adminId}": {
+      "schema": {
+        "$ref": "#/entities/admin"
+      },
+      "description": "Koleksi data admin"
+    },
+    "/settings/{settingId}": {
+      "schema": {
+        "$ref": "#/entities/setting"
+      },
+      "description": "Koleksi pengaturan dan tag global"
+    }
+  }
+}

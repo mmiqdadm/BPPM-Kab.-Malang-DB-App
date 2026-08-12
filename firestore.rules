@@ -1,0 +1,59 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    function isValidMember(data) {
+      return data.nama is string && data.nama.size() >= 1 && data.nama.size() <= 150
+        && data.domisili is string && data.domisili.size() <= 100
+        && data.pendidikan is string && data.pendidikan.size() <= 50
+        && data.pembinaan is string && data.pembinaan.size() <= 50;
+    }
+
+    function isValidAdmin(data) {
+      return data.username is string && data.username.size() >= 3 && data.username.size() <= 50
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 100
+        && data.passwordHash is string
+        && (data.role == 'superadmin' || data.role == 'admin');
+    }
+
+    // Members collection
+    match /members/{memberId} {
+      allow read: if true;
+      allow create, update: if isValidId(memberId) && isValidMember(request.resource.data);
+      allow delete: if isValidId(memberId);
+    }
+
+    // Admins collection
+    match /admins/{adminId} {
+      allow read: if true;
+      allow create, update: if isValidId(adminId) && isValidAdmin(request.resource.data);
+      allow delete: if isValidId(adminId);
+    }
+
+    // Events collection
+    match /events/{eventId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(eventId);
+    }
+
+    // Event Attendances collection
+    match /event_attendances/{attendanceId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(attendanceId);
+    }
+
+    // Settings collection (global tags and configuration)
+    match /settings/{settingId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(settingId);
+    }
+  }
+}

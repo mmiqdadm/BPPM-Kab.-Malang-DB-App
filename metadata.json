@@ -1,0 +1,6 @@
+{
+  "name": "Database Anggota BPPM PKS Kab. Malang",
+  "description": "Aplikasi PWA database dan analitik anggota BPPM PKS Kabupaten Malang.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
