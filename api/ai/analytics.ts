@@ -28,14 +28,7 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'Prompt pesan tidak boleh kosong.' });
     }
 
-    const ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        },
-      },
-    });
+    const ai = new GoogleGenAI({ apiKey });
 
     // Format compact summary of database for AI context
     const membersCompact = (membersContext || []).map((m: any) => ({
@@ -80,13 +73,12 @@ ${JSON.stringify(membersCompact)}
       parts: [{ text: prompt }],
     });
 
-    // Candidate models list in order of preference
+    // Candidate models list in order of preference (Primary: gemini-3.6-flash)
     const CANDIDATE_MODELS = [
+      'gemini-3.6-flash',
+      'gemini-3.5-flash-lite',
       'gemini-2.0-flash',
-      'gemini-1.5-flash-latest',
-      'gemini-2.0-flash-lite',
       'gemini-1.5-flash',
-      'gemini-1.5-pro',
     ];
 
     let answerText = '';

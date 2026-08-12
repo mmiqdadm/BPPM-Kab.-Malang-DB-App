@@ -1,7 +1,10 @@
 import express from 'express';
 import path from 'path';
+import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
+
+dotenv.config();
 
 async function startServer() {
   const app = express();
@@ -13,9 +16,9 @@ async function startServer() {
   app.post('/api/ai/analytics', async (req, res) => {
     try {
       const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
+      if (!apiKey || apiKey.includes('YourGeminiApiKeyHere')) {
         return res.status(500).json({
-          error: 'GEMINI_API_KEY tidak dikonfigurasi. Silakan atur GEMINI_API_KEY pada Settings > Secrets.',
+          error: 'GEMINI_API_KEY belum diisi di file .env lokal. Silakan buka file .env dan isi GEMINI_API_KEY=AIzaSy...',
         });
       }
 
@@ -25,14 +28,7 @@ async function startServer() {
         return res.status(400).json({ error: 'Prompt pesan tidak boleh kosong.' });
       }
 
-      const ai = new GoogleGenAI({
-        apiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          },
-        },
-      });
+      const ai = new GoogleGenAI({ apiKey });
 
       // Format compact summary of database for AI context (minified to save tokens)
       const membersCompact = (membersContext || []).map((m: any) => ({
@@ -78,13 +74,12 @@ ${JSON.stringify(membersCompact)}
         parts: [{ text: prompt }],
       });
 
-      // Candidate models list in order of preference
+      // Candidate models list in order of preference (Primary: gemini-3.6-flash)
       const CANDIDATE_MODELS = [
+        'gemini-3.6-flash',
+        'gemini-3.5-flash-lite',
         'gemini-2.0-flash',
-        'gemini-1.5-flash-latest',
-        'gemini-2.0-flash-lite',
         'gemini-1.5-flash',
-        'gemini-1.5-pro',
       ];
 
       let answerText = '';
