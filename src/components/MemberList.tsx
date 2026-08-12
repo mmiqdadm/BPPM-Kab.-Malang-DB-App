@@ -16,6 +16,7 @@ import {
   Trash2,
   SlidersHorizontal,
   X,
+  ChevronLeft,
   ChevronRight,
   Printer,
   Sparkles,
@@ -65,6 +66,10 @@ export const MemberList: React.FC<MemberListProps> = ({
 
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
   // Calculate event count per member name / member ID
   const memberEventCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -105,6 +110,7 @@ export const MemberList: React.FC<MemberListProps> = ({
     setMinAge('');
     setMaxAge('');
     setSortBy('terbaru');
+    setCurrentPage(1);
   };
 
   // Filter & Sort Logic
@@ -205,6 +211,17 @@ export const MemberList: React.FC<MemberListProps> = ({
     sortBy,
     memberEventCounts,
   ]);
+
+  // Reset to page 1 on filter/search change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [search, selectedOrgs, selectedPembinaan, selectedPendidikan, selectedKeaktifan, selectedDomisili, minAge, maxAge, sortBy, pageSize]);
+
+  const totalPages = Math.ceil(filteredAndSortedMembers.length / pageSize) || 1;
+  const paginatedMembers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredAndSortedMembers.slice(start, start + pageSize);
+  }, [filteredAndSortedMembers, currentPage, pageSize]);
 
   const activeFilterCount =
     selectedOrgs.length +
@@ -456,7 +473,8 @@ export const MemberList: React.FC<MemberListProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
-                {filteredAndSortedMembers.map((m, idx) => {
+                {paginatedMembers.map((m, idx) => {
+                  const globalIdx = (currentPage - 1) * pageSize + idx + 1;
                   const age = calculateAge(m.tglLahir);
                   const waLink = formatWhatsAppLink(m.nomorHp);
                   const attCount = getMemberAttendanceCount(m);
@@ -465,7 +483,7 @@ export const MemberList: React.FC<MemberListProps> = ({
                   return (
                     <tr key={m.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-2.5 px-3 text-center font-mono text-slate-400">
-                        {idx + 1}
+                        {globalIdx}
                       </td>
 
                       <td className="py-2.5 px-3">
@@ -580,7 +598,8 @@ export const MemberList: React.FC<MemberListProps> = ({
 
           {/* Mobile View: Distinct Card Layout with Clear Separators */}
           <div className="md:hidden space-y-3 p-2 bg-slate-50/80 rounded-2xl text-xs">
-            {filteredAndSortedMembers.map((m, idx) => {
+            {paginatedMembers.map((m, idx) => {
+              const globalIdx = (currentPage - 1) * pageSize + idx + 1;
               const age = calculateAge(m.tglLahir);
               const waLink = formatWhatsAppLink(m.nomorHp);
               const attCount = getMemberAttendanceCount(m);
@@ -595,7 +614,7 @@ export const MemberList: React.FC<MemberListProps> = ({
                   <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
                     <div className="flex items-center space-x-2 min-w-0">
                       <span className="w-5 h-5 rounded-md bg-slate-100 text-slate-500 font-mono font-bold text-[10px] flex items-center justify-center shrink-0">
-                        {idx + 1}
+                        {globalIdx}
                       </span>
                       <h4
                         onClick={() => onViewMember(m)}
@@ -684,6 +703,56 @@ export const MemberList: React.FC<MemberListProps> = ({
                 </div>
               );
             })}
+          </div>
+
+          {/* Pagination Controls Footer */}
+          <div className="bg-slate-50 border-t border-slate-200 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 font-medium">
+            <div className="flex items-center space-x-2">
+              <span>Tampilkan</span>
+              <select
+                value={pageSize}
+                onChange={e => setPageSize(Number(e.target.value))}
+                className="bg-white border border-slate-300 text-slate-800 text-xs rounded-lg px-2 py-1 font-bold outline-none"
+              >
+                <option value={15}>15</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <span>baris per halaman</span>
+              <span className="text-slate-400">|</span>
+              <span>
+                Menampilkan <strong>{Math.min((currentPage - 1) * pageSize + 1, filteredAndSortedMembers.length)}</strong> -{' '}
+                <strong>{Math.min(currentPage * pageSize, filteredAndSortedMembers.length)}</strong> dari{' '}
+                <strong>{filteredAndSortedMembers.length}</strong> anggota
+              </span>
+            </div>
+
+            <div className="flex items-center space-x-1.5">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-2.5 py-1 bg-white hover:bg-slate-100 disabled:opacity-40 border border-slate-300 rounded-lg font-bold flex items-center space-x-1 transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span className="hidden sm:inline">Prev</span>
+              </button>
+
+              <div className="flex items-center space-x-1 px-1 font-bold text-slate-800">
+                <span>Halaman {currentPage}</span>
+                <span className="text-slate-400">/</span>
+                <span>{totalPages}</span>
+              </div>
+
+              <button
+                onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="px-2.5 py-1 bg-white hover:bg-slate-100 disabled:opacity-40 border border-slate-300 rounded-lg font-bold flex items-center space-x-1 transition-colors"
+              >
+                <span className="hidden sm:inline">Next</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}

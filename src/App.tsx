@@ -63,6 +63,9 @@ export default function App() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showPwaBanner, setShowPwaBanner] = useState(false);
 
+  // Track Cloud Firestore Sync State
+  const [isCloudSyncActive, setIsCloudSyncActive] = useState(true);
+
   // Check current session & load data
   useEffect(() => {
     const session = getCurrentAdminSession();
@@ -77,6 +80,7 @@ export default function App() {
     // Subscribe to Firestore realtime updates
     const unsubMembers = subscribeMembersFirestore(updatedMembers => {
       setMembers(updatedMembers);
+      setIsCloudSyncActive(true);
     });
 
     const unsubEvents = subscribeEventsFirestore(updatedEvents => {
@@ -107,6 +111,35 @@ export default function App() {
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstall);
 
+    // Global Keyboard Shortcuts (Ctrl+K, Ctrl+J, Escape)
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore shortcut if user is typing in input or textarea (except Escape)
+      const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      const isInput = targetTag === 'input' || targetTag === 'textarea' || targetTag === 'select';
+
+      if (e.key === 'Escape') {
+        setIsFormOpen(false);
+        setEditingMember(null);
+        setViewingMember(null);
+        setIsBulkImportOpen(false);
+        setIsAdminMgmtOpen(false);
+        setIsAIAssistantOpen(false);
+        setDeleteTarget(null);
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setActiveTab('members');
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        setIsAIAssistantOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
     return () => {
       unsubMembers();
       unsubEvents();
@@ -114,6 +147,7 @@ export default function App() {
       unsubTags();
       window.removeEventListener('pks_members_updated', handleStorageUpdate);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
 

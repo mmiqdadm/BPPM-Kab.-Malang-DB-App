@@ -66,10 +66,12 @@ export function loadMembersFromLocal(): Member[] {
   }
 }
 
-export function saveMembersToLocal(members: Member[]): void {
+export function saveMembersToLocal(members: Member[], notify: boolean = true): void {
   try {
     localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(members));
-    window.dispatchEvent(new Event('pks_members_updated'));
+    if (notify) {
+      window.dispatchEvent(new Event('pks_members_updated'));
+    }
   } catch (err) {
     console.error('Error saving members locally:', err);
   }
@@ -101,7 +103,7 @@ export function subscribeMembersFirestore(onUpdate: (members: Member[]) => void)
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
 
-      saveMembersToLocal(firestoreMembers);
+      saveMembersToLocal(firestoreMembers, false);
       onUpdate(firestoreMembers);
     },
     error => {
@@ -226,10 +228,12 @@ export function loadEventsFromLocal(): EventItem[] {
   }
 }
 
-export function saveEventsToLocal(events: EventItem[]): void {
+export function saveEventsToLocal(events: EventItem[], notify: boolean = true): void {
   try {
     localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(events));
-    window.dispatchEvent(new Event('pks_events_updated'));
+    if (notify) {
+      window.dispatchEvent(new Event('pks_events_updated'));
+    }
   } catch (err) {
     console.error('Error saving events locally:', err);
   }
@@ -258,7 +262,7 @@ export function subscribeEventsFirestore(onUpdate: (events: EventItem[]) => void
         (a, b) => new Date(b.waktu).getTime() - new Date(a.waktu).getTime()
       );
 
-      saveEventsToLocal(firestoreEvents);
+      saveEventsToLocal(firestoreEvents, false);
       onUpdate(firestoreEvents);
     },
     error => {
@@ -325,10 +329,12 @@ export function loadAttendancesFromLocal(): EventAttendance[] {
   }
 }
 
-export function saveAttendancesToLocal(attendances: EventAttendance[]): void {
+export function saveAttendancesToLocal(attendances: EventAttendance[], notify: boolean = true): void {
   try {
     localStorage.setItem(ATTENDANCE_STORAGE_KEY, JSON.stringify(attendances));
-    window.dispatchEvent(new Event('pks_attendances_updated'));
+    if (notify) {
+      window.dispatchEvent(new Event('pks_attendances_updated'));
+    }
   } catch (err) {
     console.error('Error saving attendances locally:', err);
   }
@@ -363,7 +369,7 @@ export function subscribeAttendancesFirestore(
         (a, b) => new Date(b.waktuPresensi).getTime() - new Date(a.waktuPresensi).getTime()
       );
 
-      saveAttendancesToLocal(firestoreAttendances);
+      saveAttendancesToLocal(firestoreAttendances, false);
       onUpdate(firestoreAttendances);
     },
     error => {

@@ -13,6 +13,7 @@ interface HeaderBarProps {
   onOpenBulkImport: () => void;
   isPWAInstallable: boolean;
   onInstallPWA: () => void;
+  isCloudSyncActive?: boolean;
 }
 
 export const HeaderBar: React.FC<HeaderBarProps> = ({
@@ -25,26 +26,38 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   onOpenBulkImport,
   isPWAInstallable,
   onInstallPWA,
+  isCloudSyncActive = true,
 }) => {
   return (
-    <header className="sticky top-0 z-30 bg-white border-b border-slate-200/80 shadow-xs">
+    <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/80 shadow-xs transition-all">
       <div className="max-w-7xl mx-auto px-3 sm:px-6">
         <div className="flex items-center justify-between h-14">
           {/* Brand Logo & Title */}
-          <div
-            onClick={() => setActiveTab('dashboard')}
-            className="flex items-center space-x-2 cursor-pointer select-none group"
-          >
-            <PKSLogo className="w-8 h-8 group-hover:scale-105 transition-transform" />
-            <div>
-              <div className="flex items-center space-x-1.5">
-                <span className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">
-                  BPPM
-                </span>
-                <span className="bg-orange-50 text-[#F27D26] border border-orange-200 text-[10px] font-bold px-1.5 py-0.2 rounded-md">
-                  Kab. Malang
-                </span>
+          <div className="flex items-center space-x-3">
+            <div
+              onClick={() => setActiveTab('dashboard')}
+              className="flex items-center space-x-2 cursor-pointer select-none group"
+            >
+              <PKSLogo className="w-8 h-8 group-hover:scale-105 transition-transform" />
+              <div>
+                <div className="flex items-center space-x-1.5">
+                  <span className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">
+                    BPPM
+                  </span>
+                  <span className="bg-orange-50 text-[#F27D26] border border-orange-200 text-[10px] font-bold px-1.5 py-0.2 rounded-md">
+                    Kab. Malang
+                  </span>
+                </div>
               </div>
+            </div>
+
+            {/* Cloud Sync Status Indicator */}
+            <div
+              className="hidden lg:flex items-center space-x-1.5 bg-slate-100/90 border border-slate-200 px-2 py-0.5 rounded-full text-[10px] font-bold text-slate-600"
+              title="Status Sinkronisasi Realtime Cloud Firestore"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Realtime Cloud Sync</span>
             </div>
           </div>
 

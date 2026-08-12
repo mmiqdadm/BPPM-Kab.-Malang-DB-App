@@ -25,28 +25,20 @@ async function startServer() {
         return res.status(400).json({ error: 'Prompt pesan tidak boleh kosong.' });
       }
 
-      const ai = new GoogleGenAI({
-        apiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          },
-        },
-      });
+      const ai = new GoogleGenAI({ apiKey });
 
-      // Format compact summary of database for AI context
+      // Format compact summary of database for AI context (minified to save tokens)
       const membersCompact = (membersContext || []).map((m: any) => ({
         id: m.id,
-        nama: m.nama,
-        nomorHp: m.nomorHp || '-',
-        domisili: m.domisili,
-        pendidikan: m.pendidikan,
-        jurusan: m.jurusan || '-',
-        organisasi: (m.organisasiInternal || []).join(', '),
-        aktivitas: m.aktivitas,
-        keahlian: (m.keahlian || []).join(', '),
-        hobi: (m.hobi || []).join(', '),
-        pembinaan: m.pembinaan,
+        n: m.nama,
+        hp: m.nomorHp || '',
+        dom: m.domisili,
+        edu: m.pendidikan + (m.jurusan ? ` ${m.jurusan}` : ''),
+        org: (m.organisasiInternal || []).join(','),
+        akt: m.aktivitas,
+        kh: (m.keahlian || []).join(','),
+        hb: (m.hobi || []).join(','),
+        pb: m.pembinaan,
       }));
 
       const systemInstruction = `Anda adalah Asisten AI Analitis khusus untuk Database Anggota BPPM PKS Kabupaten Malang.
@@ -55,12 +47,12 @@ Tugas Anda adalah membantu pengurus/admin menganalisis data anggota, mencari ang
 Panduan Jawaban:
 1. Jawab dalam Bahasa Indonesia yang ramah, sopan, dan profesional.
 2. Manfaatkan data ringkas anggota yang diberikan di bawah ini.
-3. Saat menyebutkan nama anggota yang sesuai kriteria (misalnya mencari keahlian/hobi/wilayah tertentu), sebutkan Nama Lengkap, Kecamatan Domisili, Organisasi (IPNU/Garuda/Gema/dll), Nomor HP (bila ada), dan Keahlian/Hobi mereka.
-4. Gunakan format Markdown yang rapi (Gunakan **bold**, tabel, atau poin-poin bullet).
+3. Saat menyebutkan nama anggota yang sesuai kriteria, sebutkan Nama Lengkap (n), Domisili (dom), Organisasi (org), Nomor HP (hp), serta Keahlian (kh) / Hobi (hb).
+4. Gunakan format Markdown yang rapi (**bold**, poin-poin bullet).
 5. Jika hasil pencarian menemukan anggota tertentu, sertakan ringkasan jumlahnya di awal jawaban.
 
 DATA ANGGOTA TERSEDIA SAAT INI (${membersCompact.length} Anggota):
-${JSON.stringify(membersCompact, null, 2)}
+${JSON.stringify(membersCompact)}
 `;
 
       // Build contents array including previous history if provided
@@ -80,7 +72,7 @@ ${JSON.stringify(membersCompact, null, 2)}
       });
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: 'gemini-2.5-flash',
         contents,
         config: {
           systemInstruction,
