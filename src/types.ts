@@ -76,6 +76,7 @@ export interface FilterOptions {
   search: string;
   organisasi: OrganisasiType[];
   pembinaan: PembinaanType | 'Semua';
+  jenjangPembinaan?: JenjangPembinaanType | 'Semua';
   pendidikan: PendidikanType | 'Semua';
   domisili: string | 'Semua';
   dapil: string | 'Semua';

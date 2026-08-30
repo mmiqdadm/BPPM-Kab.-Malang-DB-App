@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Member, FilterOptions, OrganisasiType, PembinaanType, PendidikanType, ActivityRatingLevel, EventItem, EventAttendance } from '../types';
+import { Member, FilterOptions, OrganisasiType, PembinaanType, PendidikanType, ActivityRatingLevel, EventItem, EventAttendance, JenjangPembinaanType } from '../types';
 import { calculateAge, formatWhatsAppLink, formatDateIndonesian, getActivityRating, getDapilByKecamatan } from '../lib/utils';
-import { KECAMATAN_MALANG, ORGANISASI_LIST, PENDIDIKAN_LIST, PEMBINAAN_LIST, DAPIL_MALANG, DAPIL_LIST } from '../data/constants';
+import { KECAMATAN_MALANG, ORGANISASI_LIST, PENDIDIKAN_LIST, PEMBINAAN_LIST, DAPIL_MALANG, DAPIL_LIST, JENJANG_PEMBINAAN_LIST } from '../data/constants';
 import { getAllOrganizations } from '../lib/storage';
 import { exportMembersToExcel, exportMembersToPDF, exportSingleMemberCardPDF } from '../lib/export';
 import {
@@ -58,6 +58,7 @@ export const MemberList: React.FC<MemberListProps> = ({
   }, [externalSearchTerm]);
   const [selectedOrgs, setSelectedOrgs] = useState<OrganisasiType[]>([]);
   const [selectedPembinaan, setSelectedPembinaan] = useState<PembinaanType | 'Semua'>('Semua');
+  const [selectedJenjang, setSelectedJenjang] = useState<JenjangPembinaanType | 'Semua'>('Semua');
   const [selectedPendidikan, setSelectedPendidikan] = useState<PendidikanType | 'Semua'>('Semua');
   const [selectedKeaktifan, setSelectedKeaktifan] = useState<ActivityRatingLevel | 'Semua'>('Semua');
   const [selectedDapil, setSelectedDapil] = useState<string>('Semua');
@@ -114,6 +115,7 @@ export const MemberList: React.FC<MemberListProps> = ({
     setSearch('');
     setSelectedOrgs([]);
     setSelectedPembinaan('Semua');
+    setSelectedJenjang('Semua');
     setSelectedPendidikan('Semua');
     setSelectedKeaktifan('Semua');
     setSelectedDapil('Semua');
@@ -165,6 +167,13 @@ export const MemberList: React.FC<MemberListProps> = ({
         // Pembinaan filter
         if (selectedPembinaan !== 'Semua' && m.pembinaan !== selectedPembinaan) {
           return false;
+        }
+
+        // Jenjang Pembinaan filter (Hanya relevan jika pembinaan 'Sudah')
+        if (selectedJenjang !== 'Semua') {
+          if (m.pembinaan !== 'Sudah' || (m.jenjangPembinaan || 'Muda') !== selectedJenjang) {
+            return false;
+          }
         }
 
         // Pendidikan filter
@@ -237,6 +246,7 @@ export const MemberList: React.FC<MemberListProps> = ({
     search,
     selectedOrgs,
     selectedPembinaan,
+    selectedJenjang,
     selectedPendidikan,
     selectedKeaktifan,
     selectedDapil,
@@ -256,6 +266,7 @@ export const MemberList: React.FC<MemberListProps> = ({
     search,
     selectedOrgs,
     selectedPembinaan,
+    selectedJenjang,
     selectedPendidikan,
     selectedKeaktifan,
     selectedDapil,
@@ -276,6 +287,7 @@ export const MemberList: React.FC<MemberListProps> = ({
   const activeFilterCount =
     selectedOrgs.length +
     (selectedPembinaan !== 'Semua' ? 1 : 0) +
+    (selectedJenjang !== 'Semua' ? 1 : 0) +
     (selectedPendidikan !== 'Semua' ? 1 : 0) +
     (selectedKeaktifan !== 'Semua' ? 1 : 0) +
     (selectedDapil !== 'Semua' ? 1 : 0) +
@@ -409,7 +421,7 @@ export const MemberList: React.FC<MemberListProps> = ({
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
               {/* 1. Organisasi Filter */}
               <div className="sm:col-span-2 md:col-span-3 lg:col-span-2">
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -501,7 +513,7 @@ export const MemberList: React.FC<MemberListProps> = ({
               {/* 5. Status Pembinaan */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Pembinaan
+                  Status Pembinaan
                 </label>
                 <select
                   value={selectedPembinaan}
@@ -517,7 +529,26 @@ export const MemberList: React.FC<MemberListProps> = ({
                 </select>
               </div>
 
-              {/* 6. Status Keaktifan Event */}
+              {/* 6. Filter Jenjang Pembinaan */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Jenjang Pembinaan
+                </label>
+                <select
+                  value={selectedJenjang}
+                  onChange={e => setSelectedJenjang(e.target.value as any)}
+                  className="w-full bg-white text-slate-800 border border-slate-200 text-xs rounded-lg p-2 outline-none font-medium focus:border-[#F27D26]"
+                >
+                  <option value="Semua">Semua Jenjang</option>
+                  {JENJANG_PEMBINAAN_LIST.map(j => (
+                    <option key={j} value={j}>
+                      Jenjang {j}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 7. Status Keaktifan Event */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Keaktifan Presensi

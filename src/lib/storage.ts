@@ -1,5 +1,5 @@
 import { Member, EventItem, EventAttendance } from '../types';
-import { INITIAL_SEED_MEMBERS, INITIAL_SEED_EVENTS, INITIAL_SEED_ATTENDANCES } from '../data/constants';
+import { INITIAL_SEED_MEMBERS, INITIAL_SEED_EVENTS, INITIAL_SEED_ATTENDANCES, ORGANISASI_LIST } from '../data/constants';
 import { db, auth } from './firebase';
 import {
   collection,
@@ -541,6 +541,55 @@ export function saveCustomOrganization(org: string): void {
   setDoc(tagDocRef, { organizations: arrayUnion(clean) }, { merge: true }).catch(err =>
     handleFirestoreError(err, OperationType.WRITE, 'settings/tags')
   );
+}
+
+export function updateCustomOrganization(oldName: string, newName: string): void {
+  const cleanOld = oldName.trim();
+  const cleanNew = newName.trim();
+  if (!cleanNew || cleanOld.toLowerCase() === cleanNew.toLowerCase()) return;
+
+  const existing = getCustomOrganizations();
+  const updated = existing.map(o => (o.toLowerCase() === cleanOld.toLowerCase() ? cleanNew : o));
+  if (!existing.some(o => o.toLowerCase() === cleanOld.toLowerCase())) {
+    updated.push(cleanNew);
+  }
+  localStorage.setItem(CUSTOM_ORGS_KEY, JSON.stringify(Array.from(new Set(updated))));
+
+  // Update existing members data in local storage and cloud if affected
+  const members = loadMembersFromLocal();
+  let membersChanged = false;
+  const updatedMembers = members.map(m => {
+    if ((m.organisasiInternal || []).some(o => o.toLowerCase() === cleanOld.toLowerCase())) {
+      membersChanged = true;
+      return {
+        ...m,
+        organisasiInternal: m.organisasiInternal.map(o =>
+          o.toLowerCase() === cleanOld.toLowerCase() ? cleanNew : o
+        ),
+      };
+    }
+    return m;
+  });
+
+  if (membersChanged) {
+    saveMembersToLocal(updatedMembers, true);
+    // Batch update to Firestore
+    const batch = writeBatch(db);
+    updatedMembers.forEach(m => {
+      if ((m.organisasiInternal || []).includes(cleanNew)) {
+        batch.update(doc(db, 'members', m.id), { organisasiInternal: m.organisasiInternal });
+      }
+    });
+    batch.commit().catch(err => handleFirestoreError(err, OperationType.WRITE, 'members'));
+  }
+
+  // Cloud Firestore Sync for tags
+  const tagDocRef = doc(db, 'settings', 'tags');
+  setDoc(tagDocRef, { organizations: updated }, { merge: true }).catch(err =>
+    handleFirestoreError(err, OperationType.WRITE, 'settings/tags')
+  );
+
+  window.dispatchEvent(new Event('pks_tags_updated'));
 }
 
 export function deleteCustomOrganization(org: string): void {

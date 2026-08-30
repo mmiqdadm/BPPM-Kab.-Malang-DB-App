@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Member, EventItem, EventAttendance, OrganisasiType, PembinaanType, PendidikanType } from '../types';
-import { calculateAge, getAgeCategory, getActivityRating, getDapilByKecamatan } from '../lib/utils';
-import { ORGANISASI_LIST, PEMBINAAN_LIST, DAPIL_LIST, JENJANG_PEMBINAAN_LIST } from '../data/constants';
+import { Member, EventItem, EventAttendance, OrganisasiType, PembinaanType, PendidikanType, JenjangPembinaanType } from '../types';
+import { calculateAge, getActivityRating, getDapilByKecamatan } from '../lib/utils';
+import { KECAMATAN_MALANG, ORGANISASI_LIST, PEMBINAAN_LIST, DAPIL_MALANG, DAPIL_LIST, JENJANG_PEMBINAAN_LIST, PENDIDIKAN_LIST } from '../data/constants';
 import { getAllOrganizations } from '../lib/storage';
 import {
   PieChart,
@@ -34,6 +34,12 @@ import {
   Target,
   Zap,
   Building2,
+  Briefcase,
+  Share2,
+  Smartphone,
+  Compass,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 
 interface DashboardAnalyticsProps {
@@ -51,8 +57,10 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
   attendances = [],
   onOpenAddMember,
 }) => {
-  const [selectedOrgFilter, setSelectedOrgFilter] = useState<OrganisasiType | 'Semua'>('Semua');
+  const [selectedOrgFilter, setSelectedOrgFilter] = useState<string | 'Semua'>('Semua');
+  const [selectedDapilFilter, setSelectedDapilFilter] = useState<string | 'Semua'>('Semua');
   const [selectedPembinaanFilter, setSelectedPembinaanFilter] = useState<PembinaanType | 'Semua'>('Semua');
+  const [selectedJenjangFilter, setSelectedJenjangFilter] = useState<JenjangPembinaanType | 'Semua'>('Semua');
   const [selectedPendidikanFilter, setSelectedPendidikanFilter] = useState<PendidikanType | 'Semua'>('Semua');
   const [selectedAgeRangeFilter, setSelectedAgeRangeFilter] = useState<string>('Semua');
   const [allOrgs, setAllOrgs] = useState<string[]>(getAllOrganizations());
@@ -105,7 +113,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
     const topRepeatMemberEvent = sortByRepeat[0] || null;
 
     const orgEventMap: Record<string, { eventCount: number; participantCount: number }> = {};
-    ORGANISASI_LIST.forEach(org => {
+    allOrgs.forEach(org => {
       orgEventMap[org] = { eventCount: 0, participantCount: 0 };
     });
 
@@ -156,14 +164,26 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
       topActiveMembers,
       retentionRate,
     };
-  }, [events, attendances, members]);
+  }, [events, attendances, members, allOrgs]);
 
-  // Filtered members for interactive slice analysis across all 4 filter angles
+  // Filtered members for interactive slice analysis across all filter angles
   const filteredData = useMemo(() => {
     return members.filter(m => {
       const matchOrg =
         selectedOrgFilter === 'Semua' || (m.organisasiInternal && m.organisasiInternal.includes(selectedOrgFilter));
+      
+      let matchDapil = true;
+      if (selectedDapilFilter !== 'Semua') {
+        const dapilKecamatans = DAPIL_MALANG[selectedDapilFilter] || [];
+        matchDapil = dapilKecamatans.some(
+          k => k.toLowerCase() === (m.domisili || '').toLowerCase().trim()
+        );
+      }
+
       const matchPembinaan = selectedPembinaanFilter === 'Semua' || m.pembinaan === selectedPembinaanFilter;
+      const matchJenjang =
+        selectedJenjangFilter === 'Semua' ||
+        (m.pembinaan === 'Sudah' && (m.jenjangPembinaan || 'Muda') === selectedJenjangFilter);
       const matchEdu = selectedPendidikanFilter === 'Semua' || m.pendidikan === selectedPendidikanFilter;
 
       let matchAge = true;
@@ -176,9 +196,17 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
         else if (selectedAgeRangeFilter === '>40') matchAge = age > 40;
       }
 
-      return matchOrg && matchPembinaan && matchEdu && matchAge;
+      return matchOrg && matchDapil && matchPembinaan && matchJenjang && matchEdu && matchAge;
     });
-  }, [members, selectedOrgFilter, selectedPembinaanFilter, selectedPendidikanFilter, selectedAgeRangeFilter]);
+  }, [
+    members,
+    selectedOrgFilter,
+    selectedDapilFilter,
+    selectedPembinaanFilter,
+    selectedJenjangFilter,
+    selectedPendidikanFilter,
+    selectedAgeRangeFilter,
+  ]);
 
   // Key KPI Metrics
   const totalCount = filteredData.length;
@@ -195,7 +223,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
 
   const activePembinaanPercent = totalCount > 0 ? Math.round((activePembinaanCount / totalCount) * 100) : 0;
 
-  // 1. Age Range Distribution
+  // 1. Age Range & Generation Distribution
   const ageDistribution = useMemo(() => {
     const counts = {
       '< 18 th': 0,
@@ -262,8 +290,9 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
     };
 
     filteredData.forEach(m => {
-      if (m.pembinaan === 'Sudah' && m.jenjangPembinaan) {
-        counts[m.jenjangPembinaan] = (counts[m.jenjangPembinaan] || 0) + 1;
+      if (m.pembinaan === 'Sudah') {
+        const j = m.jenjangPembinaan || 'Muda';
+        counts[j] = (counts[j] || 0) + 1;
       }
     });
 
@@ -320,7 +349,128 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
       .slice(0, 8);
   }, [filteredData]);
 
-  // 6. Top Skills Breakdown
+  // 5b. Geographic Coverage of Kab. Malang (33 Kecamatan)
+  const geographicCoverage = useMemo(() => {
+    const coveredSet = new Set<string>();
+    filteredData.forEach(m => {
+      if (m.domisili) coveredSet.add(m.domisili.toLowerCase().trim());
+    });
+    const totalMalangKecamatans = KECAMATAN_MALANG.length; // 33 Kecamatan
+    const activeCount = coveredSet.size;
+    const percent = Math.round((activeCount / totalMalangKecamatans) * 100);
+
+    const unrepresented = KECAMATAN_MALANG.filter(
+      k => !coveredSet.has(k.toLowerCase().trim())
+    );
+
+    return {
+      totalKecamatans: totalMalangKecamatans,
+      activeCount,
+      percent,
+      unrepresentedCount: unrepresented.length,
+      unrepresentedList: unrepresented.slice(0, 8),
+    };
+  }, [filteredData]);
+
+  // 6. Activity / Profession Distribution
+  const activityDistribution = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredData.forEach(m => {
+      const raw = (m.aktivitas || 'Belum Diisi').trim();
+      if (!raw) return;
+      
+      let cat = raw;
+      const lower = raw.toLowerCase();
+      if (lower.includes('mahasiswa') || lower.includes('kuliah') || lower.includes('kampus') || lower.includes('ub') || lower.includes('um') || lower.includes('uin')) {
+        cat = 'Mahasiswa';
+      } else if (lower.includes('pelajar') || lower.includes('siswa') || lower.includes('sma') || lower.includes('smk') || lower.includes('sekolah') || lower.includes('santri')) {
+        cat = 'Pelajar / Santri';
+      } else if (lower.includes('wirausaha') || lower.includes('bisnis') || lower.includes('usaha') || lower.includes('owner') || lower.includes('toko') || lower.includes('dagang')) {
+        cat = 'Wirausaha / Bisnis';
+      } else if (lower.includes('karyawan') || lower.includes('pegawai') || lower.includes('swasta') || lower.includes('staf') || lower.includes('buruh') || lower.includes('pabrik')) {
+        cat = 'Karyawan Swasta';
+      } else if (lower.includes('guru') || lower.includes('dosen') || lower.includes('pengajar') || lower.includes('ustadz') || lower.includes('pendidik')) {
+        cat = 'Guru / Pengajar';
+      } else if (lower.includes('freelance') || lower.includes('designer') || lower.includes('programmer') || lower.includes('digital') || lower.includes('konten') || lower.includes('creator')) {
+        cat = 'Freelance / Digital';
+      } else if (lower.includes('pns') || lower.includes('asn') || lower.includes('honorer') || lower.includes('aparat')) {
+        cat = 'PNS / ASN';
+      } else if (lower.includes('pencari') || lower.includes('belum') || lower.includes('fresh')) {
+        cat = 'Pencari Kerja';
+      }
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+
+    return Object.entries(counts)
+      .map(([name, Jumlah]) => ({ name, Jumlah }))
+      .sort((a, b) => b.Jumlah - a.Jumlah)
+      .slice(0, 6);
+  }, [filteredData]);
+
+  // 7. Social Media Reach & Digital Readiness
+  const socialMediaReach = useMemo(() => {
+    let instagram = 0;
+    let tiktok = 0;
+    let twitter = 0;
+    let facebook = 0;
+    let hasWhatsApp = 0;
+
+    filteredData.forEach(m => {
+      if (m.sosmed?.instagram && m.sosmed.instagram.trim() !== '-' && m.sosmed.instagram.trim().length > 1) instagram++;
+      if (m.sosmed?.tiktok && m.sosmed.tiktok.trim() !== '-' && m.sosmed.tiktok.trim().length > 1) tiktok++;
+      if (m.sosmed?.twitter && m.sosmed.twitter.trim() !== '-' && m.sosmed.twitter.trim().length > 1) twitter++;
+      if (m.sosmed?.facebook && m.sosmed.facebook.trim() !== '-' && m.sosmed.facebook.trim().length > 1) facebook++;
+      if (m.nomorHp && m.nomorHp.trim().replace(/\D/g, '').length >= 8) hasWhatsApp++;
+    });
+
+    return [
+      { name: 'WhatsApp', Jumlah: hasWhatsApp, fill: '#10B981' },
+      { name: 'Instagram', Jumlah: instagram, fill: '#E1306C' },
+      { name: 'TikTok', Jumlah: tiktok, fill: '#0F172A' },
+      { name: 'Facebook', Jumlah: facebook, fill: '#1877F2' },
+      { name: 'Twitter/X', Jumlah: twitter, fill: '#0284C7' },
+    ];
+  }, [filteredData]);
+
+  // 8. Top Pembina / Mentor Leaderboard
+  const topMentors = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredData.forEach(m => {
+      if (m.pembinaan === 'Sudah') {
+        const mentor = (m.namaPembina || '').trim();
+        if (mentor && mentor !== '-') {
+          counts[mentor] = (counts[mentor] || 0) + 1;
+        }
+      }
+    });
+
+    return Object.entries(counts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+  }, [filteredData]);
+
+  // 9. Multi-Organisasi Engagement
+  const multiOrgEngagement = useMemo(() => {
+    let single = 0;
+    let multi = 0;
+    let none = 0;
+
+    filteredData.forEach(m => {
+      const orgs = (m.organisasiInternal || []).filter(o => o && o !== 'Belum');
+      if (orgs.length === 0) none++;
+      else if (orgs.length === 1) single++;
+      else multi++;
+    });
+
+    return [
+      { name: '1 Sayap Org', value: single, color: '#F27D26' },
+      { name: '2+ Sayap (Multi-Aktif)', value: multi, color: '#10B981' },
+      { name: 'Belum Terdaftar di Sayap', value: none, color: '#94A3B8' },
+    ];
+  }, [filteredData]);
+
+  // 10. Top Skills Breakdown
   const topSkills = useMemo(() => {
     const counts: Record<string, number> = {};
     filteredData.forEach(m => {
@@ -336,7 +486,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
       .slice(0, 10);
   }, [filteredData]);
 
-  // 7. Top Hobbies Breakdown
+  // 11. Top Hobbies Breakdown
   const topHobbies = useMemo(() => {
     const counts: Record<string, number> = {};
     filteredData.forEach(m => {
@@ -352,20 +502,42 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
       .slice(0, 10);
   }, [filteredData]);
 
+  const hasActiveFilters =
+    selectedOrgFilter !== 'Semua' ||
+    selectedDapilFilter !== 'Semua' ||
+    selectedPembinaanFilter !== 'Semua' ||
+    selectedJenjangFilter !== 'Semua' ||
+    selectedPendidikanFilter !== 'Semua' ||
+    selectedAgeRangeFilter !== 'Semua';
+
+  const handleResetFilters = () => {
+    setSelectedOrgFilter('Semua');
+    setSelectedDapilFilter('Semua');
+    setSelectedPembinaanFilter('Semua');
+    setSelectedJenjangFilter('Semua');
+    setSelectedPendidikanFilter('Semua');
+    setSelectedAgeRangeFilter('Semua');
+  };
+
   return (
-    <div className="space-y-4 text-slate-800">
+    <div className="space-y-5 text-slate-800">
       {/* Dynamic Slicer Filter Bar */}
-      <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex items-center space-x-2">
-          <div className="w-7 h-7 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-[#F27D26]">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex items-center space-x-2.5">
+          <div className="w-8 h-8 rounded-xl bg-orange-50 border border-orange-200 flex items-center justify-center text-[#F27D26]">
             <Filter className="w-4 h-4" />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-slate-900 leading-tight">
-              Filter Angle Analitik
+            <h2 className="text-sm font-bold text-slate-900 leading-tight flex items-center space-x-2">
+              <span>Filter Multi-Dimensi Analitik</span>
+              {hasActiveFilters && (
+                <span className="text-[10px] bg-orange-100 text-[#F27D26] font-bold px-2 py-0.5 rounded-full border border-orange-200">
+                  Filter Aktif
+                </span>
+              )}
             </h2>
             <p className="text-[11px] text-slate-500 font-medium">
-              Saring grafik berdasarkan multi-dimensi kriteria
+              Saring dan telaah visualisasi berdasarkan irisan kriteria keanggotaan
             </p>
           </div>
         </div>
@@ -375,18 +547,32 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
           {/* Angle 1: Organisasi */}
           <select
             value={selectedOrgFilter}
-            onChange={e => setSelectedOrgFilter(e.target.value as any)}
+            onChange={e => setSelectedOrgFilter(e.target.value)}
             className="bg-slate-50 text-slate-800 border border-slate-200 text-xs rounded-lg px-2.5 py-1.5 outline-none focus:border-[#F27D26] font-semibold"
           >
             <option value="Semua">Semua Org</option>
-            {ORGANISASI_LIST.map(org => (
+            {allOrgs.map(org => (
               <option key={org} value={org}>
                 {org}
               </option>
             ))}
           </select>
 
-          {/* Angle 2: Pembinaan */}
+          {/* Angle 2: Dapil */}
+          <select
+            value={selectedDapilFilter}
+            onChange={e => setSelectedDapilFilter(e.target.value)}
+            className="bg-slate-50 text-slate-800 border border-slate-200 text-xs rounded-lg px-2.5 py-1.5 outline-none focus:border-[#F27D26] font-semibold"
+          >
+            <option value="Semua">Semua Dapil</option>
+            {DAPIL_LIST.map(d => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+
+          {/* Angle 3: Pembinaan */}
           <select
             value={selectedPembinaanFilter}
             onChange={e => setSelectedPembinaanFilter(e.target.value as any)}
@@ -400,7 +586,21 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
             ))}
           </select>
 
-          {/* Angle 3: Pendidikan */}
+          {/* Angle 4: Jenjang */}
+          <select
+            value={selectedJenjangFilter}
+            onChange={e => setSelectedJenjangFilter(e.target.value as any)}
+            className="bg-slate-50 text-slate-800 border border-slate-200 text-xs rounded-lg px-2.5 py-1.5 outline-none focus:border-[#F27D26] font-semibold"
+          >
+            <option value="Semua">Semua Jenjang</option>
+            {JENJANG_PEMBINAAN_LIST.map(j => (
+              <option key={j} value={j}>
+                Jenjang {j}
+              </option>
+            ))}
+          </select>
+
+          {/* Angle 5: Pendidikan */}
           <select
             value={selectedPendidikanFilter}
             onChange={e => setSelectedPendidikanFilter(e.target.value as any)}
@@ -415,7 +615,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
             <option value="Lainnya">Lainnya</option>
           </select>
 
-          {/* Angle 4: Rentang Usia */}
+          {/* Angle 6: Rentang Usia */}
           <select
             value={selectedAgeRangeFilter}
             onChange={e => setSelectedAgeRangeFilter(e.target.value)}
@@ -429,18 +629,10 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
             <option value=">40">&gt; 40 Tahun</option>
           </select>
 
-          {(selectedOrgFilter !== 'Semua' ||
-            selectedPembinaanFilter !== 'Semua' ||
-            selectedPendidikanFilter !== 'Semua' ||
-            selectedAgeRangeFilter !== 'Semua') && (
+          {hasActiveFilters && (
             <button
-              onClick={() => {
-                setSelectedOrgFilter('Semua');
-                setSelectedPembinaanFilter('Semua');
-                setSelectedPendidikanFilter('Semua');
-                setSelectedAgeRangeFilter('Semua');
-              }}
-              className="text-xs text-[#F27D26] hover:underline font-bold px-1"
+              onClick={handleResetFilters}
+              className="text-xs text-[#F27D26] hover:underline font-bold px-1 py-1"
             >
               Reset Filter
             </button>
@@ -448,68 +640,97 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
         </div>
       </div>
 
-      {/* Summary KPI Cards Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm">
+      {/* Strategic Executive KPI Cards (6 Cards) */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        {/* Card 1: Total Anggota */}
+        <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Anggota</span>
-            <div className="w-7 h-7 rounded-lg bg-orange-50 border border-orange-100 text-[#F27D26] flex items-center justify-center">
-              <Users className="w-4 h-4" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Anggota</span>
+            <div className="w-6 h-6 rounded-lg bg-orange-50 border border-orange-100 text-[#F27D26] flex items-center justify-center">
+              <Users className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="text-2xl font-black text-slate-900 mt-1">{totalCount}</div>
-          <p className="text-[10px] text-slate-500 font-medium">Terdata dalam filter</p>
+          <div className="text-xl font-black text-slate-900 mt-1">{totalCount}</div>
+          <p className="text-[10px] text-slate-500 font-medium truncate">Dalam filter aktif</p>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm">
+        {/* Card 2: Tingkat Keterbinaan */}
+        <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Rata-Rata Usia</span>
-            <div className="w-7 h-7 rounded-lg bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center">
-              <Award className="w-4 h-4" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Keterbinaan</span>
+            <div className="w-6 h-6 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center">
+              <Sparkles className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="text-2xl font-black text-slate-900 mt-1">
+          <div className="text-xl font-black text-emerald-600 mt-1">{activePembinaanPercent}%</div>
+          <p className="text-[10px] text-slate-500 font-medium truncate">{activePembinaanCount} kader terbina</p>
+        </div>
+
+        {/* Card 3: Rata-Rata Usia */}
+        <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Rata-Rata Usia</span>
+            <div className="w-6 h-6 rounded-lg bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center">
+              <Award className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="text-xl font-black text-slate-900 mt-1">
             {avgAge} <span className="text-xs font-semibold text-slate-400">th</span>
           </div>
-          <p className="text-[10px] text-slate-500 font-medium">Kategori Usia Muda</p>
+          <p className="text-[10px] text-slate-500 font-medium truncate">Dominan Gen-Z & Muda</p>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm">
+        {/* Card 4: Cakupan Kecamatan */}
+        <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pembinaan Aktif</span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center">
-              <Sparkles className="w-4 h-4" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cakupan Wilayah</span>
+            <div className="w-6 h-6 rounded-lg bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center">
+              <MapPin className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="text-2xl font-black text-emerald-600 mt-1">{activePembinaanPercent}%</div>
-          <p className="text-[10px] text-slate-500 font-medium">{activePembinaanCount} anggota sudah pembinaan</p>
+          <div className="text-xl font-black text-blue-600 mt-1">{geographicCoverage.percent}%</div>
+          <p className="text-[10px] text-slate-500 font-medium truncate">{geographicCoverage.activeCount}/33 Kecamatan</p>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm">
+        {/* Card 5: Konektivitas WhatsApp */}
+        <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Top Domisili</span>
-            <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center">
-              <MapPin className="w-4 h-4" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Koneksi WA</span>
+            <div className="w-6 h-6 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center">
+              <Smartphone className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="text-lg font-black text-slate-900 mt-1 truncate">
-            {domicileDistribution[0]?.name || '-'}
+          <div className="text-xl font-black text-slate-900 mt-1">
+            {totalCount > 0 ? Math.round((socialMediaReach[0].Jumlah / totalCount) * 100) : 0}%
           </div>
-          <p className="text-[10px] text-slate-500 font-medium">
-            {domicileDistribution[0]?.Jumlah || 0} anggota
-          </p>
+          <p className="text-[10px] text-slate-500 font-medium truncate">{socialMediaReach[0].Jumlah} nomor valid</p>
+        </div>
+
+        {/* Card 6: Multi-Organisasi */}
+        <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Multi-Sayap</span>
+            <div className="w-6 h-6 rounded-lg bg-purple-50 border border-purple-100 text-purple-600 flex items-center justify-center">
+              <Building2 className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="text-xl font-black text-purple-600 mt-1">
+            {totalCount > 0 ? Math.round((multiOrgEngagement[1].value / totalCount) * 100) : 0}%
+          </div>
+          <p className="text-[10px] text-slate-500 font-medium truncate">{multiOrgEngagement[1].value} kader multi-aktif</p>
         </div>
       </div>
 
-      {/* Main Visual Charts Row 1: Age & Internal Org */}
+      {/* ROW 1: DEMOGRAFI & SAYAP ORGANISASI */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Age Range Pie Chart */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-          <div className="mb-2">
+        {/* Age Range Donut Chart */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
               <PieIcon className="w-3.5 h-3.5 text-[#F27D26]" />
-              <span>Distribusi Rentang Usia</span>
+              <span>Distribusi Rentang Usia & Generasi</span>
             </h3>
+            <span className="text-[10px] text-slate-400 font-medium">Segmentasi Pemuda</span>
           </div>
 
           <div className="h-52">
@@ -538,12 +759,13 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
         </div>
 
         {/* Organisasi Internal Bar Chart */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-          <div className="mb-2">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
               <BarChart3 className="w-3.5 h-3.5 text-amber-500" />
-              <span>Sebaran Organisasi Internal</span>
+              <span>Sebaran Organisasi & Sayap Internal</span>
             </h3>
+            <span className="text-[10px] text-slate-400 font-medium">Partisipasi Sayap</span>
           </div>
 
           <div className="h-52">
@@ -561,73 +783,18 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
         </div>
       </div>
 
-      {/* Main Visual Charts Row 2: Pembinaan & Education */}
+      {/* ROW 2: EKOSISTEM WILAYAH & DAPIL MALANG */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Status Pembinaan Chart */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-          <div className="mb-2">
-            <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
-              <span>Status Pembinaan</span>
-            </h3>
-          </div>
-
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pembinaanDistribution}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={65}
-                  dataKey="value"
-                >
-                  <Cell fill="#10B981" />
-                  <Cell fill="#94A3B8" />
-                  <Cell fill="#F59E0B" />
-                </Pie>
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', color: '#1e293b', fontSize: '11px' }}
-                />
-                <Legend formatter={(value) => <span className="text-[11px] text-slate-600 font-medium">{value}</span>} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Tingkat Pendidikan Chart */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-          <div className="mb-2">
-            <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
-              <BookOpen className="w-3.5 h-3.5 text-blue-500" />
-              <span>Tingkat Pendidikan</span>
-            </h3>
-          </div>
-
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={educationDistribution} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
-                <XAxis type="number" stroke="#64748b" fontSize={11} tickLine={false} allowDecimals={false} />
-                <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={11} tickLine={false} width={65} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', color: '#1e293b', fontSize: '11px' }}
-                />
-                <Bar dataKey="Jumlah" fill="#3B82F6" radius={[0, 6, 6, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Visual Charts Row 2b: Sebaran Dapil & Jenjang Pembinaan */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Sebaran Dapil (Wilayah) */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-          <div className="mb-2">
+        {/* Sebaran Dapil (Wilayah 1 - 7) */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
               <MapPin className="w-3.5 h-3.5 text-blue-600" />
               <span>Persebaran Anggota per Dapil (Dapil 1 - 7)</span>
             </h3>
+            <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+              7 Daerah Pemilihan
+            </span>
           </div>
 
           <div className="h-48">
@@ -644,13 +811,78 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
           </div>
         </div>
 
-        {/* Jenjang Pembinaan Kader (Khusus yang 'Sudah') */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-          <div className="mb-2">
+        {/* Analisis Wilayah Kecamatan (Basis Terkuat vs Target Ekspansi) */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
+                <Compass className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Peta Kekuatan & Potensi Kecamatan Malang</span>
+              </h3>
+              <span className="text-[10px] text-slate-500 font-medium">33 Kecamatan</span>
+            </div>
+
+            {/* Top 4 Kecamatan Terbanyak */}
+            <div className="mb-3">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                🏆 Top Basis Wilayah Terbanyak
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {domicileDistribution.slice(0, 4).map((d, idx) => (
+                  <div key={d.name} className="p-2 bg-slate-50 rounded-xl border border-slate-200/80">
+                    <div className="text-[10px] text-slate-400 font-bold">#{idx + 1}</div>
+                    <div className="font-bold text-xs text-slate-900 truncate">{d.name}</div>
+                    <div className="text-[11px] font-extrabold text-blue-600">{d.Jumlah} Kader</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Wilayah Belum Terjangkau / Potensi Rekrutmen */}
+            <div>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                <span>🎯 Target Ekspansi Wilayah ({geographicCoverage.unrepresentedCount} Kecamatan Kosong/Minim)</span>
+              </p>
+              {geographicCoverage.unrepresentedList.length === 0 ? (
+                <p className="text-xs text-emerald-600 font-semibold">🎉 Luar biasa! Seluruh 33 kecamatan telah memiliki kader terdaftar.</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {geographicCoverage.unrepresentedList.map(k => (
+                    <span
+                      key={k}
+                      className="text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-md"
+                    >
+                      Kec. {k}
+                    </span>
+                  ))}
+                  {geographicCoverage.unrepresentedCount > 8 && (
+                    <span className="text-[10px] font-semibold text-slate-400 self-center">
+                      +{geographicCoverage.unrepresentedCount - 8} lainnya
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <p className="text-[10px] text-slate-400 mt-2 font-medium">
+            💡 Gunakan data ini untuk menentukan lokasi pelaksanaan program kepemudaan atau pelatihan berikutnya.
+          </p>
+        </div>
+      </div>
+
+      {/* ROW 3: EKOSISTEM KADERISASI & PEMBINAAN */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Status & Jenjang Pembinaan Chart */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>Sebaran Jenjang Kader Terbina</span>
+              <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+              <span>Komposisi Status & Jenjang Pembinaan</span>
             </h3>
+            <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              {activePembinaanPercent}% Terbina
+            </span>
           </div>
 
           <div className="h-48">
@@ -675,12 +907,128 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
             </ResponsiveContainer>
           </div>
         </div>
+
+        {/* Leaderboard Pembina / Mentor */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
+              <Award className="w-3.5 h-3.5 text-amber-500" />
+              <span>Distribusi Mentor / Pembina Kader</span>
+            </h3>
+            <span className="text-[10px] text-slate-500 font-medium">Beban Binaan</span>
+          </div>
+
+          {topMentors.length === 0 ? (
+            <div className="py-8 text-center text-xs text-slate-400 font-medium">
+              Belum ada data nama pembina yang tercatat pada kader berstatus &quot;Sudah&quot;.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {topMentors.map((mentor, idx) => (
+                <div
+                  key={mentor.name}
+                  className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between"
+                >
+                  <div className="flex items-center space-x-2 min-w-0">
+                    <span className="w-5 h-5 rounded-md bg-amber-100 text-amber-800 font-bold font-mono text-[10px] flex items-center justify-center shrink-0">
+                      #{idx + 1}
+                    </span>
+                    <span className="font-bold text-xs text-slate-900 truncate">
+                      {mentor.name}
+                    </span>
+                  </div>
+                  <span className="bg-emerald-50 text-emerald-700 font-bold text-[10px] px-2 py-0.5 rounded-md border border-emerald-200 shrink-0">
+                    {mentor.count} Binaan
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Row 3: Skills & Hobbies Mapping */}
+      {/* ROW 4: AKTIVITAS/PROFESI & LATAR BELAKANG PENDIDIKAN */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Top Skills Cloud/List */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        {/* Aktivitas / Profesi Anggota */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
+              <Briefcase className="w-3.5 h-3.5 text-[#F27D26]" />
+              <span>Aktivitas & Profesi Utama Anggota</span>
+            </h3>
+            <span className="text-[10px] text-slate-400 font-medium">Potensi Karir</span>
+          </div>
+
+          <div className="h-52">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={activityDistribution} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} />
+                <YAxis stroke="#64748b" fontSize={11} tickLine={false} allowDecimals={false} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', color: '#1e293b', fontSize: '11px' }}
+                />
+                <Bar dataKey="Jumlah" fill="#F27D26" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Tingkat Pendidikan Chart */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
+              <BookOpen className="w-3.5 h-3.5 text-blue-500" />
+              <span>Jenjang Pendidikan Terakhir</span>
+            </h3>
+            <span className="text-[10px] text-slate-400 font-medium">Latar Belakang Akademik</span>
+          </div>
+
+          <div className="h-52">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={educationDistribution} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
+                <XAxis type="number" stroke="#64748b" fontSize={11} tickLine={false} allowDecimals={false} />
+                <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={11} tickLine={false} width={65} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', color: '#1e293b', fontSize: '11px' }}
+                />
+                <Bar dataKey="Jumlah" fill="#3B82F6" radius={[0, 6, 6, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* ROW 5: KESIAPAN MEDIA SOSIAL, SKILLS & HOBI */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Kesiapan Media Sosial (Digital Reach) */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
+              <Share2 className="w-3.5 h-3.5 text-rose-500" />
+              <span>Kesiapan Jangkauan Media Sosial</span>
+            </h3>
+          </div>
+
+          <div className="h-52">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={socialMediaReach} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} />
+                <YAxis stroke="#64748b" fontSize={11} tickLine={false} allowDecimals={false} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', color: '#1e293b', fontSize: '11px' }}
+                />
+                <Bar dataKey="Jumlah" radius={[6, 6, 0, 0]}>
+                  {socialMediaReach.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Top Skills */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
               <Award className="w-3.5 h-3.5 text-amber-500" />
@@ -689,7 +1037,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
           </div>
 
           {topSkills.length === 0 ? (
-            <p className="text-xs text-slate-400 py-4 text-center font-medium">Belum ada data keahlian.</p>
+            <p className="text-xs text-slate-400 py-6 text-center font-medium">Belum ada data keahlian.</p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {topSkills.map((s, idx) => (
@@ -708,8 +1056,8 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
           )}
         </div>
 
-        {/* Top Hobbies Cloud/List */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        {/* Top Hobbies */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
               <Heart className="w-3.5 h-3.5 text-rose-500" />
@@ -718,7 +1066,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
           </div>
 
           {topHobbies.length === 0 ? (
-            <p className="text-xs text-slate-400 py-4 text-center font-medium">Belum ada data hobi.</p>
+            <p className="text-xs text-slate-400 py-6 text-center font-medium">Belum ada data hobi.</p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {topHobbies.map((h, idx) => (
@@ -738,8 +1086,8 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
         </div>
       </div>
 
-      {/* EVENT ANALYTICS & INTELLIGENCE SECTION (Placed at bottom, soft eye-friendly light theme) */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+      {/* ROW 6: EVENT ANALYTICS & INTELLIGENCE SECTION */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
           <div className="flex items-center space-x-2.5">
@@ -760,7 +1108,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
           </span>
         </div>
 
-        {/* 4 Highlight Event KPI Cards (Soft light palette) */}
+        {/* 4 Highlight Event KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {/* Card 1: Event Teramai */}
           <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-200 space-y-1">
@@ -823,7 +1171,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
           </div>
         </div>
 
-        {/* Detailed Event Leaderboards & Analytics Grid */}
+        {/* Detailed Event Leaderboards */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-1">
           {/* Leaderboard Table: Event Performance Rank */}
           <div className="bg-slate-50/50 rounded-xl p-3.5 border border-slate-200 space-y-2.5">
