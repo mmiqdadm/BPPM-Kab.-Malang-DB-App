@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { EventItem, EventAttendance, Member, OrganisasiType } from '../types';
 import { ORGANISASI_LIST, KECAMATAN_MALANG } from '../data/constants';
+import { getAllOrganizations } from '../lib/storage';
 import { formatDateIndonesian, formatWhatsAppLink } from '../lib/utils';
 import {
   Calendar,
@@ -53,6 +54,13 @@ export const EventManagement: React.FC<EventManagementProps> = ({
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
   const [isAddPresensiModalOpen, setIsAddPresensiModalOpen] = useState(false);
   const [isBulkPresensiModalOpen, setIsBulkPresensiModalOpen] = useState(false);
+  const [allOrgs, setAllOrgs] = useState<string[]>(getAllOrganizations());
+
+  useEffect(() => {
+    const updateOrgs = () => setAllOrgs(getAllOrganizations());
+    window.addEventListener('pks_tags_updated', updateOrgs);
+    return () => window.removeEventListener('pks_tags_updated', updateOrgs);
+  }, []);
 
   // Delete confirmation modal state
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -774,7 +782,7 @@ export const EventManagement: React.FC<EventManagementProps> = ({
                     onChange={e => setNewEventOrg(e.target.value as OrganisasiType)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-1 focus:ring-[#F27D26] focus:outline-none"
                   >
-                    {ORGANISASI_LIST.map(o => (
+                    {allOrgs.map(o => (
                       <option key={o} value={o}>
                         {o}
                       </option>

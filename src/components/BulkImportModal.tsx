@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { Member, OrganisasiType, PendidikanType, PembinaanType } from '../types';
+import { Member, OrganisasiType, PendidikanType, PembinaanType, JenjangPembinaanType } from '../types';
 import { X, Upload, FileText, CheckCircle2, AlertCircle, Download, Sparkles, ArrowRight } from 'lucide-react';
 
 interface BulkImportModalProps {
@@ -44,6 +44,8 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
       'Keahlian',
       'Hobi',
       'Pembinaan',
+      'Jenjang Pembinaan',
+      'Nama Pembina',
       'Catatan',
     ];
 
@@ -61,6 +63,8 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
       'Web Development; Design Grafis',
       'Futsal; Gowes',
       'Sudah',
+      'Pratama',
+      'Ust. Ahmad',
       'Kader aktif dapil 1',
     ];
 
@@ -78,6 +82,8 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
       'Public Speaking; MC',
       'Membaca; Writing',
       'Belum Pernah',
+      '',
+      '',
       'Berminat jadi MC kegiatan',
     ];
 
@@ -109,7 +115,9 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
     skillStr: string,
     hobiStr: string,
     pem: string,
-    catatan: string
+    catatan: string,
+    jenjangStr?: string,
+    pembinaStr?: string
   ): Omit<Member, 'id' | 'createdAt' | 'updatedAt'> | null => {
     const cleanNama = (nama || '').trim();
     if (!cleanNama) return null;
@@ -127,6 +135,8 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
       else if (upper.includes('GK')) validOrgs.push('GK');
       else if (upper.includes('PKS') || upper.includes('MUDA')) validOrgs.push('PKS Muda');
       else if (upper.includes('GEMA')) validOrgs.push('Gema');
+      else if (upper.includes('NGOPI')) validOrgs.push('Ngopi');
+      else if (o) validOrgs.push(o as OrganisasiType);
     });
 
     if (validOrgs.length === 0) validOrgs.push('PKS Muda');
@@ -138,16 +148,30 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
     else if (eduUpper.includes('SD')) cleanEdu = 'SD';
     else if (eduUpper.includes('SMP')) cleanEdu = 'SMP';
     else if (eduUpper.includes('SMA') || eduUpper.includes('SMK')) cleanEdu = 'SMA';
-    else if (eduUpper.includes('D3') || eduUpper.includes('DIPLOMA')) cleanEdu = 'Diploma';
-    else if (eduUpper.includes('S1')) cleanEdu = 'S1';
-    else if (eduUpper.includes('S2')) cleanEdu = 'S2';
-    else if (eduUpper.includes('S3')) cleanEdu = 'S3';
+    else if (eduUpper.includes('DIPLOMA') || eduUpper.includes('D3')) cleanEdu = 'Diploma';
+    else if (eduUpper.includes('S2') || eduUpper.includes('MAGISTER')) cleanEdu = 'S2';
+    else if (eduUpper.includes('S3') || eduUpper.includes('DOKTOR')) cleanEdu = 'S3';
+    else if (eduUpper.includes('LAIN')) cleanEdu = 'lain-lain';
 
     // Parse Pembinaan
     let cleanPem: PembinaanType = 'Sudah';
     const pemUpper = (pem || '').toLowerCase();
     if (pemUpper.includes('belum')) cleanPem = 'Belum Pernah';
     else if (pemUpper.includes('pernah') && pemUpper.includes('tidak')) cleanPem = 'Pernah, tapi sedang tidak';
+
+    let cleanJenjang: JenjangPembinaanType | undefined = undefined;
+    let cleanPembina: string | undefined = undefined;
+
+    if (cleanPem === 'Sudah') {
+      const jUpper = (jenjangStr || '').toUpperCase();
+      if (jUpper.includes('PRATAMA')) cleanJenjang = 'Pratama';
+      else if (jUpper.includes('MADYA')) cleanJenjang = 'Madya';
+      else cleanJenjang = 'Muda';
+
+      if (pembinaStr && pembinaStr.trim()) {
+        cleanPembina = pembinaStr.trim();
+      }
+    }
 
     // Parse skills & hobbies
     const skillsList = (skillStr || '')
@@ -184,6 +208,8 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
       keahlian: skillsList,
       hobi: hobbiesList,
       pembinaan: cleanPem,
+      jenjangPembinaan: cleanJenjang,
+      namaPembina: cleanPembina,
       catatanTambahan: (catatan || '').trim(),
       createdBy: 'Import Bulk',
     };
@@ -210,7 +236,23 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
       // If line is header, skip
       if (index === 0 && cols[0].toLowerCase().includes('nama')) return;
 
-      const [nama, hp, org, tgl, email, dom, alamat, akt, edu, jur, skills, hobi, pem, catatan] = cols;
+      const [nama, hp, org, tgl, email, dom, alamat, akt, edu, jur, skills, hobi, pem, jenjangOrCatatan, pembinaOrCatatan, catatanExtra] = cols;
+
+      // Support dynamic order if template has Jenjang & Pembina or old template
+      let jenjang = '';
+      let pembina = '';
+      let catatan = '';
+
+      if (catatanExtra !== undefined) {
+        jenjang = jenjangOrCatatan;
+        pembina = pembinaOrCatatan;
+        catatan = catatanExtra;
+      } else if (pembinaOrCatatan !== undefined) {
+        jenjang = jenjangOrCatatan;
+        catatan = pembinaOrCatatan;
+      } else {
+        catatan = jenjangOrCatatan || '';
+      }
 
       const mapped = mapRowToMember(
         nama,
@@ -226,7 +268,9 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
         skills,
         hobi,
         pem,
-        catatan
+        catatan,
+        jenjang,
+        pembina
       );
 
       if (mapped) {
@@ -283,7 +327,24 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
           const skills = String(row[offset + 10] || '');
           const hobi = String(row[offset + 11] || '');
           const pem = String(row[offset + 12] || '');
-          const catatan = String(row[offset + 13] || '');
+          const col13 = String(row[offset + 13] || '');
+          const col14 = String(row[offset + 14] || '');
+          const col15 = String(row[offset + 15] || '');
+
+          let jenjang = '';
+          let pembina = '';
+          let catatan = '';
+
+          if (row[offset + 15] !== undefined) {
+            jenjang = col13;
+            pembina = col14;
+            catatan = col15;
+          } else if (row[offset + 14] !== undefined) {
+            jenjang = col13;
+            catatan = col14;
+          } else {
+            catatan = col13;
+          }
 
           const mapped = mapRowToMember(
             nama,
@@ -299,7 +360,9 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
             skills,
             hobi,
             pem,
-            catatan
+            catatan,
+            jenjang,
+            pembina
           );
 
           if (mapped) {

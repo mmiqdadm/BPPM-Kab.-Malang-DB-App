@@ -2,11 +2,12 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Member } from '../types';
-import { calculateAge, formatDateIndonesian } from './utils';
+import { calculateAge, formatDateIndonesian, getDapilByKecamatan } from './utils';
 
 export function exportMembersToExcel(members: Member[], filenamePrefix = 'Database_Anggota_PKS_Muda_Kab_Malang'): void {
   const dataForExcel = members.map((m, index) => {
     const age = calculateAge(m.tglLahir);
+    const dapil = getDapilByKecamatan(m.domisili) || '-';
     return {
       No: index + 1,
       'Nama Lengkap': m.nama,
@@ -15,8 +16,11 @@ export function exportMembersToExcel(members: Member[], filenamePrefix = 'Databa
       'Tanggal Lahir': m.tglLahir ? formatDateIndonesian(m.tglLahir) : '-',
       'Usia (Tahun)': age > 0 ? age : '-',
       'Status Pembinaan': m.pembinaan || '-',
+      'Jenjang Pembinaan': m.pembinaan === 'Sudah' ? m.jenjangPembinaan || 'Muda' : '-',
+      'Nama Pembina': m.pembinaan === 'Sudah' ? m.namaPembina || '-' : '-',
       Pendidikan: m.pendidikan || '-',
       Jurusan: m.jurusan || '-',
+      Dapil: dapil,
       Domisili: m.domisili || '-',
       'Alamat Detail': m.alamatDetail || '-',
       'Aktivitas / Pekerjaan': m.aktivitas || '-',
@@ -43,9 +47,12 @@ export function exportMembersToExcel(members: Member[], filenamePrefix = 'Databa
     { wch: 20 }, // Org
     { wch: 18 }, // Tgl Lahir
     { wch: 12 }, // Usia
-    { wch: 22 }, // Pembinaan
+    { wch: 20 }, // Pembinaan
+    { wch: 18 }, // Jenjang
+    { wch: 22 }, // Pembina
     { wch: 12 }, // Pendidikan
     { wch: 20 }, // Jurusan
+    { wch: 14 }, // Dapil
     { wch: 18 }, // Domisili
     { wch: 30 }, // Alamat
     { wch: 25 }, // Aktivitas
@@ -99,15 +106,18 @@ export function exportMembersToPDF(members: Member[], reportTitle = 'LAPORAN DAT
 
   const tableBody = members.map((m, idx) => {
     const age = calculateAge(m.tglLahir);
+    const dapil = getDapilByKecamatan(m.domisili) || '-';
+    const pemDetail = m.pembinaan === 'Sudah' && m.jenjangPembinaan ? `Sudah (${m.jenjangPembinaan})` : (m.pembinaan || '-');
     return [
       (idx + 1).toString(),
       m.nama,
       m.nomorHp || '-',
       (m.organisasiInternal || []).join(', '),
       age > 0 ? `${age} th` : '-',
+      dapil,
       m.domisili || '-',
       m.pendidikan || '-',
-      m.pembinaan || '-',
+      pemDetail,
       (m.keahlian || []).slice(0, 3).join(', '),
       (m.hobi || []).slice(0, 3).join(', '),
     ];
@@ -115,7 +125,7 @@ export function exportMembersToPDF(members: Member[], reportTitle = 'LAPORAN DAT
 
   autoTable(doc, {
     startY: 36,
-    head: [['No', 'Nama Lengkap', 'No HP/WA', 'Organisasi', 'Usia', 'Domisili', 'Pendidikan', 'Pembinaan', 'Keahlian Utama', 'Hobi']],
+    head: [['No', 'Nama Lengkap', 'No HP/WA', 'Organisasi', 'Usia', 'Dapil', 'Domisili', 'Pendidikan', 'Pembinaan', 'Keahlian Utama', 'Hobi']],
     body: tableBody,
     theme: 'grid',
     headStyles: {
@@ -132,16 +142,17 @@ export function exportMembersToPDF(members: Member[], reportTitle = 'LAPORAN DAT
       fillColor: [248, 250, 252],
     },
     columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 42 },
-      2: { cellWidth: 28 },
-      3: { cellWidth: 28 },
-      4: { cellWidth: 16, halign: 'center' },
-      5: { cellWidth: 28 },
-      6: { cellWidth: 20 },
-      7: { cellWidth: 32 },
-      8: { cellWidth: 35 },
-      9: { cellWidth: 30 },
+      0: { cellWidth: 8, halign: 'center' },
+      1: { cellWidth: 38 },
+      2: { cellWidth: 26 },
+      3: { cellWidth: 24 },
+      4: { cellWidth: 14, halign: 'center' },
+      5: { cellWidth: 18 },
+      6: { cellWidth: 24 },
+      7: { cellWidth: 18 },
+      8: { cellWidth: 32 },
+      9: { cellWidth: 34 },
+      10: { cellWidth: 28 },
     },
     margin: { left: 14, right: 14 },
   });
@@ -158,6 +169,7 @@ export function exportSingleMemberCardPDF(m: Member): void {
   });
 
   const age = calculateAge(m.tglLahir);
+  const dapil = getDapilByKecamatan(m.domisili) || '-';
 
   // Top header bar
   doc.setFillColor(254, 80, 0);
@@ -185,7 +197,7 @@ export function exportSingleMemberCardPDF(m: Member): void {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.setTextColor(100, 116, 139);
-  doc.text(`Kecamatan: ${m.domisili || '-'} | Usia: ${age > 0 ? age + ' Tahun' : '-'} | Pembinaan: ${m.pembinaan || '-'}`, 20, 50);
+  doc.text(`Domisili: Kec. ${m.domisili || '-'} (${dapil}) | Usia: ${age > 0 ? age + ' Tahun' : '-'}`, 20, 50);
   doc.text(`Organisasi Internal: ${(m.organisasiInternal || []).join(', ') || '-'}`, 20, 56);
 
   // Details Table
@@ -197,10 +209,13 @@ export function exportSingleMemberCardPDF(m: Member): void {
       ['Email', m.email || '-'],
       ['Tanggal Lahir', m.tglLahir ? formatDateIndonesian(m.tglLahir) : '-'],
       ['Pendidikan Terakhir', `${m.pendidikan || '-'} ${m.jurusan ? '(' + m.jurusan + ')' : ''}`],
+      ['Wilayah Dapil', dapil],
       ['Domisili (Kecamatan)', m.domisili || '-'],
       ['Alamat Lengkap', m.alamatDetail || '-'],
       ['Aktivitas / Pekerjaan', m.aktivitas || '-'],
       ['Status Pembinaan', m.pembinaan || '-'],
+      ['Jenjang Pembinaan', m.pembinaan === 'Sudah' ? m.jenjangPembinaan || 'Muda' : '-'],
+      ['Nama Pembina / Mentor', m.pembinaan === 'Sudah' ? m.namaPembina || '-' : '-'],
       ['Keahlian / Keterampilan', (m.keahlian || []).join(', ') || '-'],
       ['Hobi & Minat', (m.hobi || []).join(', ') || '-'],
       ['Media Sosial', `IG: ${m.sosmed?.instagram || '-'} | TikTok: ${m.sosmed?.tiktok || '-'} | Twitter: ${m.sosmed?.twitter || '-'}`],

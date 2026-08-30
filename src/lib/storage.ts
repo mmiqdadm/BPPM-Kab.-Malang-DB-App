@@ -415,12 +415,13 @@ export function deleteAttendanceLocal(id: string): boolean {
   return true;
 }
 
-// ================= DYNAMIC CUSTOM RECOMMENDATIONS STORAGE =================
+// ================= DYNAMIC CUSTOM RECOMMENDATIONS & ORGANIZATIONS STORAGE =================
 const CUSTOM_SKILLS_KEY = 'pks_custom_skills_list_v1';
 const CUSTOM_HOBBIES_KEY = 'pks_custom_hobbies_list_v1';
+const CUSTOM_ORGS_KEY = 'pks_custom_organizations_list_v1';
 
 export function subscribeTagsFirestore(
-  onUpdate: (tags: { skills: string[]; hobbies: string[] }) => void
+  onUpdate: (tags: { skills: string[]; hobbies: string[]; organizations: string[] }) => void
 ): () => void {
   const tagDocRef = doc(db, 'settings', 'tags');
 
@@ -431,14 +432,17 @@ export function subscribeTagsFirestore(
         const data = snapshot.data();
         const skills: string[] = Array.isArray(data.skills) ? data.skills : [];
         const hobbies: string[] = Array.isArray(data.hobbies) ? data.hobbies : [];
+        const organizations: string[] = Array.isArray(data.organizations) ? data.organizations : [];
 
         localStorage.setItem(CUSTOM_SKILLS_KEY, JSON.stringify(skills));
         localStorage.setItem(CUSTOM_HOBBIES_KEY, JSON.stringify(hobbies));
+        localStorage.setItem(CUSTOM_ORGS_KEY, JSON.stringify(organizations));
 
-        onUpdate({ skills, hobbies });
+        onUpdate({ skills, hobbies, organizations });
+        window.dispatchEvent(new Event('pks_tags_updated'));
       } else {
         // Seed initial empty document in cloud
-        setDoc(tagDocRef, { skills: [], hobbies: [] }, { merge: true }).catch(err =>
+        setDoc(tagDocRef, { skills: [], hobbies: [], organizations: [] }, { merge: true }).catch(err =>
           handleFirestoreError(err, OperationType.WRITE, 'settings/tags')
         );
       }
@@ -501,6 +505,55 @@ export function saveCustomHobby(hobby: string): void {
   // Cloud Firestore Sync
   const tagDocRef = doc(db, 'settings', 'tags');
   setDoc(tagDocRef, { hobbies: arrayUnion(clean) }, { merge: true }).catch(err =>
+    handleFirestoreError(err, OperationType.WRITE, 'settings/tags')
+  );
+}
+
+export function getCustomOrganizations(): string[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_ORGS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function getAllOrganizations(): string[] {
+  const custom = getCustomOrganizations();
+  const combined = Array.from(new Set([...ORGANISASI_LIST, ...custom])).filter(Boolean);
+  return combined;
+}
+
+export function saveCustomOrganization(org: string): void {
+  const clean = org.trim();
+  if (!clean) return;
+  const existing = getCustomOrganizations();
+  if (!existing.some(o => o.toLowerCase() === clean.toLowerCase())) {
+    const updated = [...existing, clean];
+    localStorage.setItem(CUSTOM_ORGS_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new Event('pks_tags_updated'));
+  }
+
+  // Cloud Firestore Sync
+  const tagDocRef = doc(db, 'settings', 'tags');
+  setDoc(tagDocRef, { organizations: arrayUnion(clean) }, { merge: true }).catch(err =>
+    handleFirestoreError(err, OperationType.WRITE, 'settings/tags')
+  );
+}
+
+export function deleteCustomOrganization(org: string): void {
+  const clean = org.trim();
+  if (!clean) return;
+  const existing = getCustomOrganizations();
+  const updated = existing.filter(o => o.toLowerCase() !== clean.toLowerCase());
+  localStorage.setItem(CUSTOM_ORGS_KEY, JSON.stringify(updated));
+  window.dispatchEvent(new Event('pks_tags_updated'));
+
+  // Cloud Firestore Sync
+  const tagDocRef = doc(db, 'settings', 'tags');
+  setDoc(tagDocRef, { organizations: updated }, { merge: true }).catch(err =>
     handleFirestoreError(err, OperationType.WRITE, 'settings/tags')
   );
 }

@@ -1,3 +1,5 @@
+import { DAPIL_MALANG } from '../data/constants';
+
 export function calculateAge(tglLahir: string): number {
   if (!tglLahir) return 0;
   const birthDate = new Date(tglLahir);
@@ -10,6 +12,17 @@ export function calculateAge(tglLahir: string): number {
     age--;
   }
   return age >= 0 ? age : 0;
+}
+
+export function getDapilByKecamatan(kecamatan: string): string | null {
+  if (!kecamatan) return null;
+  const clean = kecamatan.toLowerCase().trim();
+  for (const [dapil, list] of Object.entries(DAPIL_MALANG)) {
+    if (list.some(k => k.toLowerCase() === clean)) {
+      return dapil;
+    }
+  }
+  return null;
 }
 
 export function formatWhatsAppLink(nomorHp: string): string {

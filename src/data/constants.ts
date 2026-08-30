@@ -1,4 +1,12 @@
-import { Member, OrganisasiType, PendidikanType, PembinaanType, EventItem, EventAttendance } from '../types';
+import {
+  Member,
+  OrganisasiType,
+  PendidikanType,
+  PembinaanType,
+  JenjangPembinaanType,
+  EventItem,
+  EventAttendance,
+} from '../types';
 
 export const KECAMATAN_MALANG = [
   'Ampelgading',
@@ -25,7 +33,7 @@ export const KECAMATAN_MALANG = [
   'Poncokusumo',
   'Pujon',
   'Singosari',
-  'Sumbermancing Wetan',
+  'Sumbermanjing Wetan',
   'Sumberpucung',
   'Tajinan',
   'Tirtoyudo',
@@ -34,6 +42,20 @@ export const KECAMATAN_MALANG = [
   'Wajak',
   'Wonosari',
 ];
+
+export const DAPIL_MALANG: Record<string, string[]> = {
+  'Dapil 1': ['Gondanglegi', 'Kepanjen', 'Pagelaran', 'Bululawang'],
+  'Dapil 2': ['Dampit', 'Ampelgading', 'Turen', 'Tirtoyudo'],
+  'Dapil 3': ['Donomulyo', 'Pagak', 'Bantur', 'Sumbermanjing Wetan', 'Sumbermancing Wetan', 'Gedangan'],
+  'Dapil 4': ['Kalipare', 'Sumberpucung', 'Pakisaji', 'Ngajum', 'Kromengan', 'Wonosari'],
+  'Dapil 5': ['Wagir', 'Dau', 'Karangploso', 'Pujon', 'Ngantang', 'Kasembon'],
+  'Dapil 6': ['Pakis', 'Singosari', 'Lawang'],
+  'Dapil 7': ['Poncokusumo', 'Wajak', 'Tajinan', 'Tumpang', 'Jabung'],
+};
+
+export const DAPIL_LIST = ['Dapil 1', 'Dapil 2', 'Dapil 3', 'Dapil 4', 'Dapil 5', 'Dapil 6', 'Dapil 7'];
+
+export const JENJANG_PEMBINAAN_LIST: JenjangPembinaanType[] = ['Muda', 'Pratama', 'Madya'];
 
 export const SUGGESTED_SKILLS = [
   'Design Grafis',

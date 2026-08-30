@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Member, FilterOptions, OrganisasiType, PembinaanType, PendidikanType, ActivityRatingLevel, EventItem, EventAttendance } from '../types';
-import { calculateAge, formatWhatsAppLink, formatDateIndonesian, getActivityRating } from '../lib/utils';
-import { KECAMATAN_MALANG, ORGANISASI_LIST, PENDIDIKAN_LIST, PEMBINAAN_LIST } from '../data/constants';
+import { calculateAge, formatWhatsAppLink, formatDateIndonesian, getActivityRating, getDapilByKecamatan } from '../lib/utils';
+import { KECAMATAN_MALANG, ORGANISASI_LIST, PENDIDIKAN_LIST, PEMBINAAN_LIST, DAPIL_MALANG, DAPIL_LIST } from '../data/constants';
+import { getAllOrganizations } from '../lib/storage';
 import { exportMembersToExcel, exportMembersToPDF, exportSingleMemberCardPDF } from '../lib/export';
 import {
   Search,
@@ -59,12 +60,21 @@ export const MemberList: React.FC<MemberListProps> = ({
   const [selectedPembinaan, setSelectedPembinaan] = useState<PembinaanType | 'Semua'>('Semua');
   const [selectedPendidikan, setSelectedPendidikan] = useState<PendidikanType | 'Semua'>('Semua');
   const [selectedKeaktifan, setSelectedKeaktifan] = useState<ActivityRatingLevel | 'Semua'>('Semua');
+  const [selectedDapil, setSelectedDapil] = useState<string>('Semua');
   const [selectedDomisili, setSelectedDomisili] = useState<string>('Semua');
+  const [selectedEventId, setSelectedEventId] = useState<string>('Semua');
   const [minAge, setMinAge] = useState<number | ''>('');
   const [maxAge, setMaxAge] = useState<number | ''>('');
   const [sortBy, setSortBy] = useState<FilterOptions['sortBy']>('terbaru');
 
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
+  const [allOrgs, setAllOrgs] = useState<string[]>(getAllOrganizations());
+
+  useEffect(() => {
+    const updateOrgs = () => setAllOrgs(getAllOrganizations());
+    window.addEventListener('pks_tags_updated', updateOrgs);
+    return () => window.removeEventListener('pks_tags_updated', updateOrgs);
+  }, []);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -106,7 +116,9 @@ export const MemberList: React.FC<MemberListProps> = ({
     setSelectedPembinaan('Semua');
     setSelectedPendidikan('Semua');
     setSelectedKeaktifan('Semua');
+    setSelectedDapil('Semua');
     setSelectedDomisili('Semua');
+    setSelectedEventId('Semua');
     setMinAge('');
     setMaxAge('');
     setSortBy('terbaru');
@@ -128,6 +140,7 @@ export const MemberList: React.FC<MemberListProps> = ({
           const matchAkt = m.aktivitas.toLowerCase().includes(q);
           const matchSkills = (m.keahlian || []).some(s => s.toLowerCase().includes(q));
           const matchHobbies = (m.hobi || []).some(h => h.toLowerCase().includes(q));
+          const matchPembina = (m.namaPembina || '').toLowerCase().includes(q);
           if (
             !matchName &&
             !matchHp &&
@@ -136,7 +149,8 @@ export const MemberList: React.FC<MemberListProps> = ({
             !matchJur &&
             !matchAkt &&
             !matchSkills &&
-            !matchHobbies
+            !matchHobbies &&
+            !matchPembina
           ) {
             return false;
           }
@@ -165,9 +179,29 @@ export const MemberList: React.FC<MemberListProps> = ({
           if (rating.level !== selectedKeaktifan) return false;
         }
 
+        // Dapil filter
+        if (selectedDapil !== 'Semua') {
+          const dapilKecamatans = DAPIL_MALANG[selectedDapil] || [];
+          const matchDapil = dapilKecamatans.some(
+            k => k.toLowerCase() === (m.domisili || '').toLowerCase().trim()
+          );
+          if (!matchDapil) return false;
+        }
+
         // Domisili filter
         if (selectedDomisili !== 'Semua' && m.domisili !== selectedDomisili) {
           return false;
+        }
+
+        // Event filter (Pernah mengikuti event tertentu)
+        if (selectedEventId !== 'Semua') {
+          const memberNameClean = m.nama.toLowerCase().trim();
+          const hasAttended = attendances.some(
+            att =>
+              att.eventId === selectedEventId &&
+              (att.memberId === m.id || att.namaPeserta.toLowerCase().trim() === memberNameClean)
+          );
+          if (!hasAttended) return false;
         }
 
         // Age Filter
@@ -205,17 +239,33 @@ export const MemberList: React.FC<MemberListProps> = ({
     selectedPembinaan,
     selectedPendidikan,
     selectedKeaktifan,
+    selectedDapil,
     selectedDomisili,
+    selectedEventId,
     minAge,
     maxAge,
     sortBy,
     memberEventCounts,
+    attendances,
   ]);
 
   // Reset to page 1 on filter/search change
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [search, selectedOrgs, selectedPembinaan, selectedPendidikan, selectedKeaktifan, selectedDomisili, minAge, maxAge, sortBy, pageSize]);
+  }, [
+    search,
+    selectedOrgs,
+    selectedPembinaan,
+    selectedPendidikan,
+    selectedKeaktifan,
+    selectedDapil,
+    selectedDomisili,
+    selectedEventId,
+    minAge,
+    maxAge,
+    sortBy,
+    pageSize,
+  ]);
 
   const totalPages = Math.ceil(filteredAndSortedMembers.length / pageSize) || 1;
   const paginatedMembers = useMemo(() => {
@@ -228,7 +278,9 @@ export const MemberList: React.FC<MemberListProps> = ({
     (selectedPembinaan !== 'Semua' ? 1 : 0) +
     (selectedPendidikan !== 'Semua' ? 1 : 0) +
     (selectedKeaktifan !== 'Semua' ? 1 : 0) +
+    (selectedDapil !== 'Semua' ? 1 : 0) +
     (selectedDomisili !== 'Semua' ? 1 : 0) +
+    (selectedEventId !== 'Semua' ? 1 : 0) +
     (minAge !== '' ? 1 : 0) +
     (maxAge !== '' ? 1 : 0);
 
@@ -350,21 +402,21 @@ export const MemberList: React.FC<MemberListProps> = ({
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-3 pt-3 mt-1">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
               <span className="text-xs font-bold text-[#F27D26] uppercase tracking-wider">
-                Filter Multi Angle
+                Filter Multi Angle Database
               </span>
               <button onClick={resetFilters} className="text-[11px] text-slate-500 hover:text-slate-800 font-medium">
-                Reset Semua
+                Reset Semua Filter
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-              {/* Organisasi Filter */}
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {/* 1. Organisasi Filter */}
+              <div className="sm:col-span-2 md:col-span-3 lg:col-span-2">
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Organisasi Internal
                 </label>
-                <div className="flex flex-wrap gap-1">
-                  {ORGANISASI_LIST.map(org => {
+                <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pr-1">
+                  {allOrgs.map(org => {
                     const active = selectedOrgs.includes(org);
                     return (
                       <button
@@ -384,25 +436,69 @@ export const MemberList: React.FC<MemberListProps> = ({
                 </div>
               </div>
 
-              {/* Status Keaktifan Event */}
+              {/* 2. Filter Dapil (Daerah Pemilihan) */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Keaktifan Event
+                  Dapil (Wilayah)
                 </label>
                 <select
-                  value={selectedKeaktifan}
-                  onChange={e => setSelectedKeaktifan(e.target.value as any)}
-                  className="w-full bg-white text-slate-800 border border-slate-200 text-xs rounded-lg p-1.5 outline-none font-medium"
+                  value={selectedDapil}
+                  onChange={e => {
+                    setSelectedDapil(e.target.value);
+                    setSelectedDomisili('Semua'); // reset specific kecamatan when dapil changes
+                  }}
+                  className="w-full bg-white text-slate-800 border border-slate-200 text-xs rounded-lg p-2 outline-none font-medium focus:border-[#F27D26]"
                 >
-                  <option value="Semua">Semua Keaktifan</option>
-                  <option value="Sangat Aktif">⭐ Sangat Aktif (6+ Event)</option>
-                  <option value="Aktif">⭐ Aktif (3-5 Event)</option>
-                  <option value="Cukup Aktif">⭐ Cukup Aktif (1-2 Event)</option>
-                  <option value="Pasif">⚪ Pasif (0 Event)</option>
+                  <option value="Semua">Semua Dapil (1 - 7)</option>
+                  {DAPIL_LIST.map(d => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              {/* Status Pembinaan */}
+              {/* 3. Domisili Kecamatan (Filtered by selected Dapil) */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Kecamatan {selectedDapil !== 'Semua' ? `(${selectedDapil})` : ''}
+                </label>
+                <select
+                  value={selectedDomisili}
+                  onChange={e => setSelectedDomisili(e.target.value)}
+                  className="w-full bg-white text-slate-800 border border-slate-200 text-xs rounded-lg p-2 outline-none font-medium focus:border-[#F27D26]"
+                >
+                  <option value="Semua">
+                    {selectedDapil !== 'Semua' ? `Semua di ${selectedDapil}` : 'Semua Kecamatan'}
+                  </option>
+                  {(selectedDapil !== 'Semua' ? DAPIL_MALANG[selectedDapil] || [] : KECAMATAN_MALANG).map(k => (
+                    <option key={k} value={k}>
+                      {k}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 4. Filter Event Yang Pernah Diikuti */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Event Diikuti
+                </label>
+                <select
+                  value={selectedEventId}
+                  onChange={e => setSelectedEventId(e.target.value)}
+                  className="w-full bg-white text-slate-800 border border-slate-200 text-xs rounded-lg p-2 outline-none font-medium focus:border-[#F27D26]"
+                >
+                  <option value="Semua">Semua Event</option>
+                  {events.map(ev => (
+                    <option key={ev.id} value={ev.id}>
+                      {ev.namaEvent}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 5. Status Pembinaan */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Pembinaan
@@ -410,7 +506,7 @@ export const MemberList: React.FC<MemberListProps> = ({
                 <select
                   value={selectedPembinaan}
                   onChange={e => setSelectedPembinaan(e.target.value as any)}
-                  className="w-full bg-white text-slate-800 border border-slate-200 text-xs rounded-lg p-1.5 outline-none font-medium"
+                  className="w-full bg-white text-slate-800 border border-slate-200 text-xs rounded-lg p-2 outline-none font-medium focus:border-[#F27D26]"
                 >
                   <option value="Semua">Semua Pembinaan</option>
                   {PEMBINAAN_LIST.map(p => (
@@ -421,22 +517,21 @@ export const MemberList: React.FC<MemberListProps> = ({
                 </select>
               </div>
 
-              {/* Domisili Kecamatan */}
+              {/* 6. Status Keaktifan Event */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Kecamatan
+                  Keaktifan Presensi
                 </label>
                 <select
-                  value={selectedDomisili}
-                  onChange={e => setSelectedDomisili(e.target.value)}
-                  className="w-full bg-white text-slate-800 border border-slate-200 text-xs rounded-lg p-1.5 outline-none font-medium"
+                  value={selectedKeaktifan}
+                  onChange={e => setSelectedKeaktifan(e.target.value as any)}
+                  className="w-full bg-white text-slate-800 border border-slate-200 text-xs rounded-lg p-2 outline-none font-medium focus:border-[#F27D26]"
                 >
-                  <option value="Semua">Semua Kecamatan</option>
-                  {KECAMATAN_MALANG.map(k => (
-                    <option key={k} value={k}>
-                      {k}
-                    </option>
-                  ))}
+                  <option value="Semua">Semua Keaktifan</option>
+                  <option value="Sangat Aktif">⭐ Sangat Aktif (6+)</option>
+                  <option value="Aktif">⭐ Aktif (3-5)</option>
+                  <option value="Cukup Aktif">⭐ Cukup Aktif (1-2)</option>
+                  <option value="Pasif">⚪ Pasif (0)</option>
                 </select>
               </div>
             </div>
@@ -545,7 +640,14 @@ export const MemberList: React.FC<MemberListProps> = ({
                       </td>
 
                       <td className="py-2.5 px-3">
-                        <div className="font-semibold text-slate-800">Kec. {m.domisili || '-'}</div>
+                        <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                          <span>Kec. {m.domisili || '-'}</span>
+                          {getDapilByKecamatan(m.domisili) && (
+                            <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-bold px-1.5 py-0.2 rounded shrink-0">
+                              {getDapilByKecamatan(m.domisili)}
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[10px] text-slate-500">
                           {m.pendidikan} {m.jurusan ? `(${m.jurusan})` : ''}
                         </div>
@@ -604,6 +706,7 @@ export const MemberList: React.FC<MemberListProps> = ({
               const waLink = formatWhatsAppLink(m.nomorHp);
               const attCount = getMemberAttendanceCount(m);
               const rating = getActivityRating(attCount, events.length);
+              const dapil = getDapilByKecamatan(m.domisili);
 
               return (
                 <div
@@ -638,9 +741,10 @@ export const MemberList: React.FC<MemberListProps> = ({
                   <div className="grid grid-cols-2 gap-2 bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/80 text-[11px] font-medium text-slate-700">
                     <div>
                       <span className="text-[10px] text-slate-400 font-bold block">Domisili & Usia</span>
-                      <span className="font-bold text-slate-900">
-                        Kec. {m.domisili || '-'} {age > 0 ? `(${age} th)` : ''}
+                      <span className="font-bold text-slate-900 block">
+                        Kec. {m.domisili || '-'} {dapil ? `(${dapil})` : ''}
                       </span>
+                      {age > 0 && <span className="text-[10px] text-amber-600 font-semibold">{age} Tahun</span>}
                     </div>
 
                     <div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Member, OrganisasiType, PendidikanType, PembinaanType } from '../types';
+import { Member, OrganisasiType, PendidikanType, PembinaanType, JenjangPembinaanType } from '../types';
 import {
   KECAMATAN_MALANG,
   SUGGESTED_SKILLS,
@@ -7,6 +7,7 @@ import {
   ORGANISASI_LIST,
   PENDIDIKAN_LIST,
   PEMBINAAN_LIST,
+  JENJANG_PEMBINAAN_LIST,
 } from '../data/constants';
 import { calculateAge } from '../lib/utils';
 import {
@@ -15,6 +16,7 @@ import {
   getCustomHobbies,
   saveCustomHobby,
   loadMembersFromLocal,
+  getAllOrganizations,
 } from '../lib/storage';
 import { X, Check, Plus, Trash2, Calendar, User, Phone, Mail, MapPin, Briefcase, GraduationCap, Award, Heart, Sparkles, MessageSquare } from 'lucide-react';
 
@@ -54,11 +56,15 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
   const [hobi, setHobi] = useState<string[]>([]);
   const [hobiInput, setHobiInput] = useState('');
   const [pembinaan, setPembinaan] = useState<PembinaanType>('Sudah');
+  const [jenjangPembinaan, setJenjangPembinaan] = useState<JenjangPembinaanType>('Muda');
+  const [namaPembina, setNamaPembina] = useState('');
   const [catatanTambahan, setCatatanTambahan] = useState('');
+  const [allOrgs, setAllOrgs] = useState<string[]>(getAllOrganizations());
 
   const [errors, setErrors] = useState<{ nama?: string }>({});
 
   useEffect(() => {
+    setAllOrgs(getAllOrganizations());
     if (initialMember) {
       setNama(initialMember.nama || '');
       setNomorHp(initialMember.nomorHp || '');
@@ -77,6 +83,8 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       setKeahlian(initialMember.keahlian || []);
       setHobi(initialMember.hobi || []);
       setPembinaan(initialMember.pembinaan || 'Sudah');
+      setJenjangPembinaan(initialMember.jenjangPembinaan || 'Muda');
+      setNamaPembina(initialMember.namaPembina || '');
       setCatatanTambahan(initialMember.catatanTambahan || '');
     } else {
       // Default reset
@@ -97,6 +105,8 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       setKeahlian([]);
       setHobi([]);
       setPembinaan('Sudah');
+      setJenjangPembinaan('Muda');
+      setNamaPembina('');
       setCatatanTambahan('');
     }
     setErrors({});
@@ -198,6 +208,8 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       keahlian,
       hobi,
       pembinaan,
+      jenjangPembinaan: pembinaan === 'Sudah' ? jenjangPembinaan : undefined,
+      namaPembina: pembinaan === 'Sudah' && namaPembina.trim() ? namaPembina.trim() : undefined,
       catatanTambahan: catatanTambahan.trim(),
       createdBy: initialMember?.createdBy || adminName,
     };
@@ -322,7 +334,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                   Organisasi Internal (Bisa Pilih Banyak)
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  {ORGANISASI_LIST.map(org => {
+                  {allOrgs.map(org => {
                     const isChecked = organisasiInternal.includes(org);
                     return (
                       <button
@@ -335,9 +347,9 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                             : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
                         }`}
                       >
-                        <span>{org}</span>
+                        <span className="truncate mr-1">{org}</span>
                         <div
-                          className={`w-4 h-4 rounded flex items-center justify-center border ${
+                          className={`w-4 h-4 rounded flex items-center justify-center border shrink-0 ${
                             isChecked
                               ? 'bg-[#F27D26] border-[#F27D26] text-white'
                               : 'border-slate-300'
@@ -382,6 +394,48 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                     );
                   })}
                 </div>
+
+                {/* Inputan Bersyarat Khusus Status Pembinaan "Sudah" */}
+                {pembinaan === 'Sudah' && (
+                  <div className="mt-3 p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl space-y-3 animate-in fade-in duration-200">
+                    <div className="text-[11px] font-bold text-amber-800 uppercase tracking-wider flex items-center space-x-1.5 border-b border-amber-200/80 pb-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Detail Pembinaan Kader</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Jenjang <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          value={jenjangPembinaan}
+                          onChange={e => setJenjangPembinaan(e.target.value as JenjangPembinaanType)}
+                          className="w-full bg-white border border-slate-200 focus:border-[#F27D26] text-slate-900 text-xs font-medium rounded-lg p-2.5 outline-none"
+                        >
+                          {JENJANG_PEMBINAAN_LIST.map(j => (
+                            <option key={j} value={j}>
+                              {j}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Nama Pembina
+                        </label>
+                        <input
+                          type="text"
+                          value={namaPembina}
+                          onChange={e => setNamaPembina(e.target.value)}
+                          placeholder="Nama Pembina / Mentor"
+                          className="w-full bg-white border border-slate-200 focus:border-[#F27D26] text-slate-900 text-xs font-medium rounded-lg p-2.5 outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -1,8 +1,10 @@
-export type OrganisasiType = 'BPPM' | 'GK' | 'PKS Muda' | 'Gema' | 'Ngopi' | 'Belum';
+export type OrganisasiType = string;
 
 export type PendidikanType = 'TK' | 'SD' | 'SMP' | 'SMA' | 'Diploma' | 'S1' | 'S2' | 'S3' | 'lain-lain';
 
 export type PembinaanType = 'Sudah' | 'Belum Pernah' | 'Pernah, tapi sedang tidak';
+
+export type JenjangPembinaanType = 'Muda' | 'Pratama' | 'Madya';
 
 export type ActivityRatingLevel = 'Pasif' | 'Cukup Aktif' | 'Aktif' | 'Sangat Aktif';
 
@@ -29,6 +31,8 @@ export interface Member {
   keahlian: string[]; // List of skills
   hobi: string[]; // List of hobbies
   pembinaan: PembinaanType;
+  jenjangPembinaan?: JenjangPembinaanType; // Khusus jika pembinaan === 'Sudah'
+  namaPembina?: string; // Khusus jika pembinaan === 'Sudah'
   catatanTambahan: string;
   createdAt: string; // ISO string
   updatedAt: string; // ISO string
@@ -74,6 +78,8 @@ export interface FilterOptions {
   pembinaan: PembinaanType | 'Semua';
   pendidikan: PendidikanType | 'Semua';
   domisili: string | 'Semua';
+  dapil: string | 'Semua';
+  eventId: string | 'Semua';
   keaktifan: ActivityRatingLevel | 'Semua';
   minAge: number | '';
   maxAge: number | '';

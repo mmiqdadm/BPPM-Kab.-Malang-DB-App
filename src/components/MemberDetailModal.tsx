@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Member, EventItem, EventAttendance } from '../types';
-import { calculateAge, formatDateIndonesian, formatWhatsAppLink, getActivityRating } from '../lib/utils';
+import { calculateAge, formatDateIndonesian, formatWhatsAppLink, getActivityRating, getDapilByKecamatan } from '../lib/utils';
 import { exportSingleMemberCardPDF } from '../lib/export';
 import {
   X,
@@ -66,6 +66,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
 
   const age = calculateAge(member.tglLahir);
   const waLink = formatWhatsAppLink(member.nomorHp);
+  const dapilName = getDapilByKecamatan(member.domisili);
 
   const activityRating = getActivityRating(attendedEvents.length, events.length);
   const displayedEvents = showAllEvents ? attendedEvents : attendedEvents.slice(0, 3);
@@ -123,6 +124,12 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                     <span>Kec. {member.domisili || 'Malang'}</span>
                   </span>
 
+                  {dapilName && (
+                    <span className="bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                      {dapilName}
+                    </span>
+                  )}
+
                   {age > 0 && (
                     <span className="bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold px-2.5 py-0.5 rounded-full">
                       Usia {age} Tahun
@@ -145,7 +152,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                         : 'bg-amber-50 text-amber-700 border-amber-200'
                     }`}
                   >
-                    Pembinaan: {member.pembinaan}
+                    Pembinaan: {member.pembinaan} {member.pembinaan === 'Sudah' && member.jenjangPembinaan ? `(${member.jenjangPembinaan})` : ''}
                   </span>
                 </div>
               </div>
@@ -295,6 +302,31 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Dedicated Section: Informasi Pembinaan Kader (Jika 'Sudah') */}
+          {member.pembinaan === 'Sudah' && (
+            <div className="bg-amber-50/70 border border-amber-200 p-4 rounded-xl space-y-3">
+              <div className="text-xs font-bold text-amber-800 uppercase tracking-wider flex items-center space-x-1.5 border-b border-amber-200/80 pb-2">
+                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                <span>Informasi Pembinaan Kader</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="flex justify-between items-center bg-white p-2.5 rounded-lg border border-amber-200/60">
+                  <span className="text-slate-500 font-medium">Jenjang Pembinaan:</span>
+                  <span className="font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
+                    {member.jenjangPembinaan || 'Muda'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center bg-white p-2.5 rounded-lg border border-amber-200/60">
+                  <span className="text-slate-500 font-medium">Nama Pembina / Mentor:</span>
+                  <span className="font-bold text-slate-900">
+                    {member.namaPembina || '-'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Skills & Hobbies */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">

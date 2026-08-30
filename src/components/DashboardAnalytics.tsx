@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Member, EventItem, EventAttendance, OrganisasiType, PembinaanType, PendidikanType } from '../types';
-import { calculateAge, getAgeCategory, getActivityRating } from '../lib/utils';
-import { ORGANISASI_LIST, PEMBINAAN_LIST } from '../data/constants';
+import { calculateAge, getAgeCategory, getActivityRating, getDapilByKecamatan } from '../lib/utils';
+import { ORGANISASI_LIST, PEMBINAAN_LIST, DAPIL_LIST, JENJANG_PEMBINAAN_LIST } from '../data/constants';
+import { getAllOrganizations } from '../lib/storage';
 import {
   PieChart,
   Pie,
@@ -32,6 +33,7 @@ import {
   Trophy,
   Target,
   Zap,
+  Building2,
 } from 'lucide-react';
 
 interface DashboardAnalyticsProps {
@@ -53,6 +55,13 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
   const [selectedPembinaanFilter, setSelectedPembinaanFilter] = useState<PembinaanType | 'Semua'>('Semua');
   const [selectedPendidikanFilter, setSelectedPendidikanFilter] = useState<PendidikanType | 'Semua'>('Semua');
   const [selectedAgeRangeFilter, setSelectedAgeRangeFilter] = useState<string>('Semua');
+  const [allOrgs, setAllOrgs] = useState<string[]>(getAllOrganizations());
+
+  useEffect(() => {
+    const updateOrgs = () => setAllOrgs(getAllOrganizations());
+    window.addEventListener('pks_tags_updated', updateOrgs);
+    return () => window.removeEventListener('pks_tags_updated', updateOrgs);
+  }, []);
 
   // Event Analytics Calculations
   const eventStats = useMemo(() => {
@@ -210,26 +219,22 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
 
   // 2. Internal Organization Distribution
   const orgDistribution = useMemo(() => {
-    const counts: Record<OrganisasiType, number> = {
-      BPPM: 0,
-      GK: 0,
-      'PKS Muda': 0,
-      Gema: 0,
-      Ngopi: 0,
-      Belum: 0,
-    };
+    const counts: Record<string, number> = {};
+    allOrgs.forEach(org => {
+      counts[org] = 0;
+    });
 
     filteredData.forEach(m => {
       (m.organisasiInternal || []).forEach(org => {
-        if (counts[org] !== undefined) counts[org]++;
+        counts[org] = (counts[org] || 0) + 1;
       });
     });
 
-    return ORGANISASI_LIST.map(org => ({
+    return allOrgs.map(org => ({
       name: org,
       Jumlah: counts[org] || 0,
     }));
-  }, [filteredData]);
+  }, [filteredData, allOrgs]);
 
   // 3. Status Pembinaan Distribution
   const pembinaanDistribution = useMemo(() => {
@@ -246,6 +251,46 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
     });
 
     return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  }, [filteredData]);
+
+  // 3b. Jenjang Pembinaan Distribution (Khusus yang 'Sudah')
+  const jenjangDistribution = useMemo(() => {
+    const counts: Record<string, number> = {
+      Muda: 0,
+      Pratama: 0,
+      Madya: 0,
+    };
+
+    filteredData.forEach(m => {
+      if (m.pembinaan === 'Sudah' && m.jenjangPembinaan) {
+        counts[m.jenjangPembinaan] = (counts[m.jenjangPembinaan] || 0) + 1;
+      }
+    });
+
+    return JENJANG_PEMBINAAN_LIST.map(j => ({
+      name: `Jenjang ${j}`,
+      value: counts[j] || 0,
+    }));
+  }, [filteredData]);
+
+  // 3c. Dapil (Daerah Pemilihan 1 - 7) Distribution
+  const dapilDistribution = useMemo(() => {
+    const counts: Record<string, number> = {};
+    DAPIL_LIST.forEach(d => {
+      counts[d] = 0;
+    });
+
+    filteredData.forEach(m => {
+      const dapil = getDapilByKecamatan(m.domisili);
+      if (dapil && counts[dapil] !== undefined) {
+        counts[dapil]++;
+      }
+    });
+
+    return DAPIL_LIST.map(d => ({
+      name: d,
+      Jumlah: counts[d] || 0,
+    }));
   }, [filteredData]);
 
   // 4. Education Distribution
@@ -569,6 +614,64 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
                 />
                 <Bar dataKey="Jumlah" fill="#3B82F6" radius={[0, 6, 6, 0]} />
               </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Visual Charts Row 2b: Sebaran Dapil & Jenjang Pembinaan */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Sebaran Dapil (Wilayah) */}
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+          <div className="mb-2">
+            <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
+              <MapPin className="w-3.5 h-3.5 text-blue-600" />
+              <span>Persebaran Anggota per Dapil (Dapil 1 - 7)</span>
+            </h3>
+          </div>
+
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dapilDistribution} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} />
+                <YAxis stroke="#64748b" fontSize={11} tickLine={false} allowDecimals={false} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', color: '#1e293b', fontSize: '11px' }}
+                />
+                <Bar dataKey="Jumlah" fill="#2563EB" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Jenjang Pembinaan Kader (Khusus yang 'Sudah') */}
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+          <div className="mb-2">
+            <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Sebaran Jenjang Kader Terbina</span>
+            </h3>
+          </div>
+
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={jenjangDistribution}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={65}
+                  dataKey="value"
+                >
+                  <Cell fill="#3B82F6" />
+                  <Cell fill="#10B981" />
+                  <Cell fill="#8B5CF6" />
+                </Pie>
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', color: '#1e293b', fontSize: '11px' }}
+                />
+                <Legend formatter={(value) => <span className="text-[11px] text-slate-600 font-medium">{value}</span>} />
+              </PieChart>
             </ResponsiveContainer>
           </div>
         </div>
