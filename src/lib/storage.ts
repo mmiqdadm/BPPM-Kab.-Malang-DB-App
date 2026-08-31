@@ -1,4 +1,4 @@
-import { Member, EventItem, EventAttendance } from '../types';
+import { Member, EventItem, EventAttendance, ActivityLog, ActivityLogCategory, ActivityLogAction, AdminRole } from '../types';
 import { INITIAL_SEED_MEMBERS, INITIAL_SEED_EVENTS, INITIAL_SEED_ATTENDANCES, ORGANISASI_LIST } from '../data/constants';
 import { db, auth } from './firebase';
 import {
@@ -7,6 +7,7 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  getDocs,
   onSnapshot,
   writeBatch,
   arrayUnion,
@@ -15,6 +16,7 @@ import {
 const MEMBERS_STORAGE_KEY = 'pks_youth_members_database_v2';
 const EVENTS_STORAGE_KEY = 'pks_youth_events_database_v1';
 const ATTENDANCE_STORAGE_KEY = 'pks_youth_attendance_database_v1';
+const ACTIVITY_LOGS_STORAGE_KEY = 'pks_youth_activity_logs_v1';
 
 enum OperationType {
   CREATE = 'create',
@@ -526,7 +528,7 @@ export function getAllOrganizations(): string[] {
   return combined;
 }
 
-export function saveCustomOrganization(org: string): void {
+export function saveCustomOrganization(org: string, adminName?: string): void {
   const clean = org.trim();
   if (!clean) return;
   const existing = getCustomOrganizations();
@@ -534,6 +536,14 @@ export function saveCustomOrganization(org: string): void {
     const updated = [...existing, clean];
     localStorage.setItem(CUSTOM_ORGS_KEY, JSON.stringify(updated));
     window.dispatchEvent(new Event('pks_tags_updated'));
+
+    recordActivityLog({
+      adminName,
+      category: 'organisasi',
+      actionType: 'create',
+      targetTitle: clean,
+      details: `Menambahkan organisasi / sayap internal baru: "${clean}"`,
+    });
   }
 
   // Cloud Firestore Sync
@@ -543,7 +553,7 @@ export function saveCustomOrganization(org: string): void {
   );
 }
 
-export function updateCustomOrganization(oldName: string, newName: string): void {
+export function updateCustomOrganization(oldName: string, newName: string, adminName?: string): void {
   const cleanOld = oldName.trim();
   const cleanNew = newName.trim();
   if (!cleanNew || cleanOld.toLowerCase() === cleanNew.toLowerCase()) return;
@@ -583,6 +593,14 @@ export function updateCustomOrganization(oldName: string, newName: string): void
     batch.commit().catch(err => handleFirestoreError(err, OperationType.WRITE, 'members'));
   }
 
+  recordActivityLog({
+    adminName,
+    category: 'organisasi',
+    actionType: 'update',
+    targetTitle: `${cleanOld} ➔ ${cleanNew}`,
+    details: `Mengubah nama organisasi "${cleanOld}" menjadi "${cleanNew}"`,
+  });
+
   // Cloud Firestore Sync for tags
   const tagDocRef = doc(db, 'settings', 'tags');
   setDoc(tagDocRef, { organizations: updated }, { merge: true }).catch(err =>
@@ -592,7 +610,7 @@ export function updateCustomOrganization(oldName: string, newName: string): void
   window.dispatchEvent(new Event('pks_tags_updated'));
 }
 
-export function deleteCustomOrganization(org: string): void {
+export function deleteCustomOrganization(org: string, adminName?: string): void {
   const clean = org.trim();
   if (!clean) return;
   const existing = getCustomOrganizations();
@@ -600,9 +618,151 @@ export function deleteCustomOrganization(org: string): void {
   localStorage.setItem(CUSTOM_ORGS_KEY, JSON.stringify(updated));
   window.dispatchEvent(new Event('pks_tags_updated'));
 
+  recordActivityLog({
+    adminName,
+    category: 'organisasi',
+    actionType: 'delete',
+    targetTitle: clean,
+    details: `Menghapus organisasi / sayap internal: "${clean}"`,
+  });
+
   // Cloud Firestore Sync
   const tagDocRef = doc(db, 'settings', 'tags');
   setDoc(tagDocRef, { organizations: updated }, { merge: true }).catch(err =>
     handleFirestoreError(err, OperationType.WRITE, 'settings/tags')
   );
+}
+
+// ==================== ACTIVITY LOGS / AUDIT TRAIL ====================
+
+export function loadActivityLogsFromLocal(): ActivityLog[] {
+  try {
+    const raw = localStorage.getItem(ACTIVITY_LOGS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    }
+    return [];
+  } catch (err) {
+    console.error('Error loading activity logs from local:', err);
+    return [];
+  }
+}
+
+export function saveActivityLogsToLocal(logs: ActivityLog[], notify: boolean = true): void {
+  try {
+    // Keep up to 500 latest logs in local storage
+    const trimmed = logs.slice(0, 500);
+    localStorage.setItem(ACTIVITY_LOGS_STORAGE_KEY, JSON.stringify(trimmed));
+    if (notify) {
+      window.dispatchEvent(new Event('pks_activity_logs_updated'));
+    }
+  } catch (err) {
+    console.error('Error saving activity logs locally:', err);
+  }
+}
+
+export function recordActivityLog(params: {
+  adminName?: string;
+  adminRole?: AdminRole;
+  adminId?: string;
+  category: ActivityLogCategory;
+  actionType: ActivityLogAction;
+  targetTitle: string;
+  details: string;
+}): ActivityLog {
+  let adminName = params.adminName;
+  let adminRole = params.adminRole;
+  let adminId = params.adminId;
+
+  if (!adminName) {
+    try {
+      const sessionRaw = localStorage.getItem('pks_youth_session_v1');
+      if (sessionRaw) {
+        const session = JSON.parse(sessionRaw);
+        adminName = session.name || session.username || 'Admin';
+        adminRole = session.role || 'admin';
+        adminId = session.id;
+      }
+    } catch {}
+  }
+
+  const logEntry: ActivityLog = {
+    id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    timestamp: new Date().toISOString(),
+    adminId: adminId || 'admin',
+    adminName: adminName || 'Admin',
+    adminRole: adminRole || 'admin',
+    category: params.category,
+    actionType: params.actionType,
+    targetTitle: params.targetTitle,
+    details: params.details,
+  };
+
+  const existingLogs = loadActivityLogsFromLocal();
+  const updatedLogs = [logEntry, ...existingLogs];
+  saveActivityLogsToLocal(updatedLogs, true);
+
+  // Sync to Cloud Firestore
+  setDoc(doc(db, 'activity_logs', logEntry.id), logEntry).catch(err => {
+    console.warn('Firestore activity_logs setDoc warning:', err);
+  });
+
+  return logEntry;
+}
+
+export function subscribeActivityLogsFirestore(onUpdate: (logs: ActivityLog[]) => void): () => void {
+  const colRef = collection(db, 'activity_logs');
+
+  const unsubscribe = onSnapshot(
+    colRef,
+    snapshot => {
+      if (snapshot.empty) {
+        const local = loadActivityLogsFromLocal();
+        onUpdate(local);
+        return;
+      }
+
+      const firestoreLogs: ActivityLog[] = snapshot.docs.map(d => d.data() as ActivityLog);
+      const localLogs = loadActivityLogsFromLocal();
+
+      // Deduplicated merge by ID
+      const map = new Map<string, ActivityLog>();
+      localLogs.forEach(l => {
+        if (l && l.id) map.set(l.id, l);
+      });
+      firestoreLogs.forEach(l => {
+        if (l && l.id) map.set(l.id, l);
+      });
+
+      const merged = Array.from(map.values()).sort(
+        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
+
+      saveActivityLogsToLocal(merged, false);
+      onUpdate(merged);
+    },
+    err => {
+      console.warn('Firestore activity_logs subscription warning:', err);
+      onUpdate(loadActivityLogsFromLocal());
+    }
+  );
+
+  return unsubscribe;
+}
+
+export async function clearAllActivityLogs(): Promise<void> {
+  saveActivityLogsToLocal([], true);
+  try {
+    const colRef = collection(db, 'activity_logs');
+    const snapshot = await getDocs(colRef);
+    const batch = writeBatch(db);
+    snapshot.docs.forEach(d => {
+      batch.delete(d.ref);
+    });
+    await batch.commit();
+  } catch (err) {
+    console.warn('Failed to clear remote logs:', err);
+  }
 }

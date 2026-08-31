@@ -17,6 +17,7 @@ import {
   deleteAttendanceLocal,
   subscribeAttendancesFirestore,
   subscribeTagsFirestore,
+  recordActivityLog,
 } from './lib/storage';
 import { HeaderBar } from './components/HeaderBar';
 import { LoginForm } from './components/LoginForm';
@@ -175,9 +176,27 @@ export default function App() {
   ) => {
     if (editId) {
       updateMemberLocal(editId, data);
+      recordActivityLog({
+        adminName: currentAdmin?.name || 'Admin',
+        adminRole: currentAdmin?.role || 'admin',
+        adminId: currentAdmin?.id,
+        category: 'anggota',
+        actionType: 'update',
+        targetTitle: data.nama,
+        details: `Memperbarui data anggota "${data.nama}" (Domisili: Kec. ${data.domisili || '-'}, Pendidikan: ${data.pendidikan || '-'})`,
+      });
       showToast('Data anggota berhasil diperbarui.');
     } else {
       addMemberLocal(data, currentAdmin?.name || 'Admin');
+      recordActivityLog({
+        adminName: currentAdmin?.name || 'Admin',
+        adminRole: currentAdmin?.role || 'admin',
+        adminId: currentAdmin?.id,
+        category: 'anggota',
+        actionType: 'create',
+        targetTitle: data.nama,
+        details: `Menambahkan anggota baru "${data.nama}" (Kec. ${data.domisili || '-'}, Sayap: ${(data.organisasiInternal || []).join(', ') || '-'})`,
+      });
       showToast('Anggota baru berhasil ditambahkan.');
     }
     setMembers(loadMembersFromLocal());
@@ -189,6 +208,15 @@ export default function App() {
   const handleConfirmDelete = () => {
     if (!deleteTarget) return;
     deleteMemberLocal(deleteTarget.id);
+    recordActivityLog({
+      adminName: currentAdmin?.name || 'Admin',
+      adminRole: currentAdmin?.role || 'admin',
+      adminId: currentAdmin?.id,
+      category: 'anggota',
+      actionType: 'delete',
+      targetTitle: deleteTarget.nama,
+      details: `Menghapus data anggota "${deleteTarget.nama}" dari database`,
+    });
     setMembers(loadMembersFromLocal());
     showToast(`Data anggota "${deleteTarget.nama}" telah dihapus.`);
     setDeleteTarget(null);
@@ -199,6 +227,15 @@ export default function App() {
     newMembers: Omit<Member, 'id' | 'createdAt' | 'updatedAt'>[]
   ) => {
     const res = bulkImportMembersLocal(newMembers, currentAdmin?.name || 'Admin');
+    recordActivityLog({
+      adminName: currentAdmin?.name || 'Admin',
+      adminRole: currentAdmin?.role || 'admin',
+      adminId: currentAdmin?.id,
+      category: 'anggota',
+      actionType: 'import',
+      targetTitle: `${res.count} Anggota Baru`,
+      details: `Melakukan import massal ${res.count} data anggota melalui CSV / Spreadsheet`,
+    });
     setMembers(loadMembersFromLocal());
     showToast(`Berhasil mengimport ${res.count} data anggota baru.`);
   };
@@ -206,12 +243,31 @@ export default function App() {
   // Event Management Handlers
   const handleAddEvent = (data: Omit<EventItem, 'id' | 'createdAt'>) => {
     addEventLocal(data, currentAdmin?.name || 'Admin');
+    recordActivityLog({
+      adminName: currentAdmin?.name || 'Admin',
+      adminRole: currentAdmin?.role || 'admin',
+      adminId: currentAdmin?.id,
+      category: 'event',
+      actionType: 'create',
+      targetTitle: data.namaEvent,
+      details: `Membuat agenda event "${data.namaEvent}" (${data.organisasiHandling}) di ${data.lokasi}`,
+    });
     setEvents(loadEventsFromLocal());
     showToast(`Event "${data.namaEvent}" berhasil dibuat.`);
   };
 
   const handleDeleteEvent = (eventId: string) => {
+    const targetEvent = events.find(e => e.id === eventId);
     deleteEventLocal(eventId);
+    recordActivityLog({
+      adminName: currentAdmin?.name || 'Admin',
+      adminRole: currentAdmin?.role || 'admin',
+      adminId: currentAdmin?.id,
+      category: 'event',
+      actionType: 'delete',
+      targetTitle: targetEvent?.namaEvent || 'Event',
+      details: `Menghapus agenda event "${targetEvent?.namaEvent || '-'}"`,
+    });
     setEvents(loadEventsFromLocal());
     showToast('Event telah dihapus.');
   };
@@ -222,10 +278,11 @@ export default function App() {
     // Check matching member
     let memberIdToUse = data.memberId;
     let autoCreatedNewMember = false;
+    const targetEv = events.find(e => e.id === data.eventId);
 
     if (!memberIdToUse) {
       const match = members.find(
-        m => m.nama.toLowerCase().trim() === data.namaPeserta.toLowerCase().trim()
+        m => m && m.nama && m.nama.toLowerCase().trim() === data.namaPeserta.toLowerCase().trim()
       );
       if (match) {
         memberIdToUse = match.id;
@@ -262,6 +319,16 @@ export default function App() {
       memberId: memberIdToUse,
     });
 
+    recordActivityLog({
+      adminName: currentAdmin?.name || 'Admin',
+      adminRole: currentAdmin?.role || 'admin',
+      adminId: currentAdmin?.id,
+      category: 'presensi',
+      actionType: 'create',
+      targetTitle: data.namaPeserta,
+      details: `Mencatat presensi kehadiran "${data.namaPeserta}" pada event "${targetEv?.namaEvent || 'Event'}"`,
+    });
+
     setAttendances(loadAttendancesFromLocal());
 
     if (autoCreatedNewMember) {
@@ -275,7 +342,20 @@ export default function App() {
   };
 
   const handleDeleteAttendance = (attendanceId: string) => {
+    const targetAtt = attendances.find(a => a.id === attendanceId);
+    const targetEv = targetAtt ? events.find(e => e.id === targetAtt.eventId) : null;
     deleteAttendanceLocal(attendanceId);
+
+    recordActivityLog({
+      adminName: currentAdmin?.name || 'Admin',
+      adminRole: currentAdmin?.role || 'admin',
+      adminId: currentAdmin?.id,
+      category: 'presensi',
+      actionType: 'delete',
+      targetTitle: targetAtt?.namaPeserta || 'Presensi',
+      details: `Menghapus log presensi "${targetAtt?.namaPeserta || '-'}" pada event "${targetEv?.namaEvent || '-'}"`,
+    });
+
     setAttendances(loadAttendancesFromLocal());
     showToast('Data presensi berhasil dihapus.');
   };

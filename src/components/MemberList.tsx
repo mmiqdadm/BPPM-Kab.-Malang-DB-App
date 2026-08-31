@@ -64,6 +64,7 @@ export const MemberList: React.FC<MemberListProps> = ({
   const [selectedJenjang, setSelectedJenjang] = useState<JenjangPembinaanType | 'Semua'>('Semua');
   const [selectedPendidikan, setSelectedPendidikan] = useState<PendidikanType | 'Semua'>('Semua');
   const [selectedKeaktifan, setSelectedKeaktifan] = useState<ActivityRatingLevel | 'Semua'>('Semua');
+  const [selectedAnakKader, setSelectedAnakKader] = useState<'Semua' | 'ya' | 'bukan'>('Semua');
   const [selectedDapil, setSelectedDapil] = useState<string>('Semua');
   const [selectedDomisili, setSelectedDomisili] = useState<string>('Semua');
   const [selectedEventId, setSelectedEventId] = useState<string>('Semua');
@@ -121,6 +122,7 @@ export const MemberList: React.FC<MemberListProps> = ({
     setSelectedJenjang('Semua');
     setSelectedPendidikan('Semua');
     setSelectedKeaktifan('Semua');
+    setSelectedAnakKader('Semua');
     setSelectedDapil('Semua');
     setSelectedDomisili('Semua');
     setSelectedEventId('Semua');
@@ -207,6 +209,12 @@ export const MemberList: React.FC<MemberListProps> = ({
           return false;
         }
 
+        // Anak Kader filter
+        if (selectedAnakKader !== 'Semua') {
+          if (selectedAnakKader === 'ya' && !m.isAnakKader) return false;
+          if (selectedAnakKader === 'bukan' && m.isAnakKader) return false;
+        }
+
         // Event filter (Pernah mengikuti event tertentu)
         if (selectedEventId !== 'Semua') {
           const memberNameClean = m.nama.toLowerCase().trim();
@@ -254,6 +262,7 @@ export const MemberList: React.FC<MemberListProps> = ({
     selectedJenjang,
     selectedPendidikan,
     selectedKeaktifan,
+    selectedAnakKader,
     selectedDapil,
     selectedDomisili,
     selectedEventId,
@@ -274,6 +283,7 @@ export const MemberList: React.FC<MemberListProps> = ({
     selectedJenjang,
     selectedPendidikan,
     selectedKeaktifan,
+    selectedAnakKader,
     selectedDapil,
     selectedDomisili,
     selectedEventId,
@@ -295,6 +305,7 @@ export const MemberList: React.FC<MemberListProps> = ({
     (selectedJenjang !== 'Semua' ? 1 : 0) +
     (selectedPendidikan !== 'Semua' ? 1 : 0) +
     (selectedKeaktifan !== 'Semua' ? 1 : 0) +
+    (selectedAnakKader !== 'Semua' ? 1 : 0) +
     (selectedDapil !== 'Semua' ? 1 : 0) +
     (selectedDomisili !== 'Semua' ? 1 : 0) +
     (selectedEventId !== 'Semua' ? 1 : 0) +
@@ -583,6 +594,22 @@ export const MemberList: React.FC<MemberListProps> = ({
                   <option value="Pasif">⚪ Pasif (0)</option>
                 </select>
               </div>
+
+              {/* 8. Status Anak Kader */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Status Anak Kader
+                </label>
+                <select
+                  value={selectedAnakKader}
+                  onChange={e => setSelectedAnakKader(e.target.value as any)}
+                  className="w-full bg-white text-slate-800 border border-slate-200 text-xs rounded-lg p-2 outline-none font-medium focus:border-[#F27D26]"
+                >
+                  <option value="Semua">Semua Status</option>
+                  <option value="ya">👑 Anak Kader</option>
+                  <option value="bukan">Bukan Anak Kader</option>
+                </select>
+              </div>
             </div>
           </div>
         )}
@@ -674,6 +701,11 @@ export const MemberList: React.FC<MemberListProps> = ({
                               {org}
                             </span>
                           ))}
+                          {m.isAnakKader && (
+                            <span className="bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold px-1.5 py-0.2 rounded-md">
+                              👑 Anak Kader
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -829,6 +861,11 @@ export const MemberList: React.FC<MemberListProps> = ({
                           {org}
                         </span>
                       ))}
+                      {m.isAnakKader && (
+                        <span className="bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold px-1.5 py-0.2 rounded-md">
+                          👑 Anak Kader
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center space-x-1.5">

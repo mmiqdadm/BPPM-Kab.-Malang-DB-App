@@ -45,11 +45,12 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
   // Compute attended events for this member
   const attendedEvents = useMemo(() => {
     if (!member) return [];
-    const memberNameClean = member.nama.toLowerCase().trim();
+    const memberNameClean = (member.nama || '').toLowerCase().trim();
     const matchedAttendances = attendances.filter(
       att =>
-        att.memberId === member.id ||
-        att.namaPeserta.toLowerCase().trim() === memberNameClean
+        att &&
+        (att.memberId === member.id ||
+          (att.namaPeserta && att.namaPeserta.toLowerCase().trim() === memberNameClean))
     );
 
     const eventMap = new Map<string, { event: EventItem; waktuPresensi: string }>();
@@ -165,6 +166,12 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                   >
                     Pembinaan: {member.pembinaan} {member.pembinaan === 'Sudah' && member.jenjangPembinaan ? `(${member.jenjangPembinaan})` : ''}
                   </span>
+
+                  {member.isAnakKader && (
+                    <span className="bg-purple-50 text-purple-700 border border-purple-200 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center space-x-1">
+                      <span>👑 Anak Kader PKS</span>
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -286,6 +293,12 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                 <div className="flex justify-between">
                   <span className="text-slate-500">Alamat Lengkap:</span>
                   <span className="font-semibold text-slate-900 text-right">{member.alamatDetail || '-'}</span>
+                </div>
+                <div className="flex justify-between items-center pt-1 border-t border-slate-200">
+                  <span className="text-slate-500">Status Anak Kader:</span>
+                  <span className={`font-bold px-2 py-0.5 rounded text-xs ${member.isAnakKader ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-600'}`}>
+                    {member.isAnakKader ? '👑 Ya (Anak Kader PKS)' : 'Bukan Anak Kader'}
+                  </span>
                 </div>
               </div>
             </div>

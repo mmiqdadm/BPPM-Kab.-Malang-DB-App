@@ -12,6 +12,7 @@ export function exportMembersToExcel(members: Member[], filenamePrefix = 'Databa
       No: index + 1,
       'Nama Lengkap': m.nama,
       'Nama Panggilan': m.namaPanggilan || '-',
+      'Anak Kader': m.isAnakKader ? 'Ya' : 'Bukan',
       'Nomor HP / WA': m.nomorHp || '-',
       'Organisasi Internal': (m.organisasiInternal || []).join(', ') || '-',
       'Tanggal Lahir': m.tglLahir ? formatDateIndonesian(m.tglLahir) : '-',
@@ -248,4 +249,37 @@ export function exportSingleMemberCardPDF(m: Member): void {
 
   const cleanName = m.nama.replace(/[^a-zA-Z0-9]/g, '_');
   doc.save(`Biodata_${cleanName}_PKS_Muda.pdf`);
+}
+
+export function exportActivityLogsToExcel(logs: any[], filenamePrefix = 'Log_Riwayat_Aktivitas_Database'): void {
+  const dataForExcel = logs.map((l, index) => ({
+    No: index + 1,
+    Waktu: l.timestamp ? new Date(l.timestamp).toLocaleString('id-ID') : '-',
+    'Admin Pelaku': l.adminName || 'Admin',
+    'Peran Admin': l.adminRole || 'admin',
+    Kategori: l.category ? l.category.toUpperCase() : '-',
+    'Jenis Aksi': l.actionType ? l.actionType.toUpperCase() : '-',
+    'Target / Objek Data': l.targetTitle || '-',
+    'Rincian Aktivitas': l.details || '-',
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(dataForExcel);
+
+  // Set column widths
+  worksheet['!cols'] = [
+    { wch: 6 }, // No
+    { wch: 22 }, // Waktu
+    { wch: 22 }, // Admin
+    { wch: 14 }, // Peran
+    { wch: 14 }, // Kategori
+    { wch: 14 }, // Aksi
+    { wch: 28 }, // Target
+    { wch: 45 }, // Rincian
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Log Aktivitas');
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(workbook, `${filenamePrefix}_${todayStr}.xlsx`);
 }

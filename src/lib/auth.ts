@@ -2,6 +2,7 @@ import { AdminUser, AdminRole } from '../types';
 import { hashPassword } from './utils';
 import { db, auth } from './firebase';
 import { doc, getDoc, setDoc, deleteDoc, getDocs, collection } from 'firebase/firestore';
+import { recordActivityLog } from './storage';
 
 const ADMIN_STORAGE_KEY = 'pks_youth_admins_v1';
 const DELETED_ADMINS_STORAGE_KEY = 'pks_youth_deleted_admins_v1';
@@ -204,6 +205,16 @@ export async function createNewAdmin(
   admins.push(newAdminObj);
   saveAdminsToLocal(admins, true);
 
+  recordActivityLog({
+    adminName: current.name,
+    adminRole: current.role,
+    adminId: current.id,
+    category: 'admin',
+    actionType: 'create',
+    targetTitle: `${newAdminObj.name} (@${newAdminObj.username})`,
+    details: `Membuat akun admin baru @${newAdminObj.username} (${newAdminObj.name}) dengan peran "${newAdminObj.role}"`,
+  });
+
   // Sync to Firestore in background (non-blocking)
   setDoc(doc(db, 'admins', newAdminObj.id), newAdminObj).catch(err => {
     console.warn('Firestore setDoc warning for admin:', err);
@@ -230,8 +241,19 @@ export async function deleteAdminUser(adminIdToDelete: string): Promise<{ succes
   saveDeletedAdminId(adminIdToDelete);
 
   let admins = loadAdminsFromLocal();
+  const adminToDelete = admins.find(a => a.id === adminIdToDelete);
   admins = admins.filter(a => a.id !== adminIdToDelete);
   saveAdminsToLocal(admins, true);
+
+  recordActivityLog({
+    adminName: current.name,
+    adminRole: current.role,
+    adminId: current.id,
+    category: 'admin',
+    actionType: 'delete',
+    targetTitle: adminToDelete ? `${adminToDelete.name} (@${adminToDelete.username})` : 'Admin',
+    details: `Menghapus akun admin @${adminToDelete?.username || '-'} (${adminToDelete?.name || '-'}) dengan peran "${adminToDelete?.role || 'admin'}"`,
+  });
 
   // Sync delete to Firestore
   deleteDoc(doc(db, 'admins', adminIdToDelete)).catch(err => {

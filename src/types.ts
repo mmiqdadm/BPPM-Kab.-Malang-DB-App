@@ -19,6 +19,7 @@ export interface Member {
   id: string;
   nama: string; // Mandatory
   namaPanggilan?: string; // Optional / Nickname
+  isAnakKader?: boolean; // Anak / Keluarga Kader PKS
   nomorHp: string;
   organisasiInternal: OrganisasiType[]; // Checklist multi-select
   tglLahir: string; // YYYY-MM-DD
@@ -71,6 +72,21 @@ export interface AdminUser {
   passwordHash: string;
   role: AdminRole;
   createdAt: string;
+}
+
+export type ActivityLogCategory = 'anggota' | 'admin' | 'event' | 'presensi' | 'organisasi';
+export type ActivityLogAction = 'create' | 'update' | 'delete' | 'import';
+
+export interface ActivityLog {
+  id: string;
+  timestamp: string; // ISO string
+  adminId?: string;
+  adminName: string;
+  adminRole: AdminRole;
+  category: ActivityLogCategory;
+  actionType: ActivityLogAction;
+  targetTitle: string; // Nama Anggota / Event / Admin / Organisasi yang terkena dampak
+  details: string; // Penjelasan ringkas apa yang dilakukan
 }
 
 export interface FilterOptions {

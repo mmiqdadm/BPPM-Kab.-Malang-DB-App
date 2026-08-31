@@ -63,6 +63,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
   const [selectedJenjangFilter, setSelectedJenjangFilter] = useState<JenjangPembinaanType | 'Semua'>('Semua');
   const [selectedPendidikanFilter, setSelectedPendidikanFilter] = useState<PendidikanType | 'Semua'>('Semua');
   const [selectedAgeRangeFilter, setSelectedAgeRangeFilter] = useState<string>('Semua');
+  const [selectedAnakKaderFilter, setSelectedAnakKaderFilter] = useState<'Semua' | 'ya' | 'bukan'>('Semua');
   const [allOrgs, setAllOrgs] = useState<string[]>(getAllOrganizations());
 
   useEffect(() => {
@@ -118,40 +119,51 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
     });
 
     events.forEach(ev => {
-      const org = ev.organisasiHandling || 'PKS Muda';
-      if (!orgEventMap[org]) orgEventMap[org] = { eventCount: 0, participantCount: 0 };
-      orgEventMap[org].eventCount += 1;
-      const attsCount = attendances.filter(a => a.eventId === ev.id).length;
-      orgEventMap[org].participantCount += attsCount;
+      if (orgEventMap[ev.organisasiHandling]) {
+        orgEventMap[ev.organisasiHandling].eventCount += 1;
+      }
+    });
+
+    attendances.forEach(att => {
+      const ev = events.find(e => e.id === att.eventId);
+      if (ev && orgEventMap[ev.organisasiHandling]) {
+        orgEventMap[ev.organisasiHandling].participantCount += 1;
+      }
     });
 
     const orgEventCounts = Object.entries(orgEventMap).map(([name, data]) => ({
       name,
-      Events: data.eventCount,
-      Peserta: data.participantCount,
+      ...data,
     }));
 
-    const memberAttMap = new Map<string, { member: Member; count: number }>();
-    members.forEach(m => {
-      const nameClean = m.nama.toLowerCase().trim();
-      const count = attendances.filter(
-        a => a.memberId === m.id || a.namaPeserta.toLowerCase().trim() === nameClean
-      ).length;
-      if (count > 0) {
-        memberAttMap.set(m.id, { member: m, count });
+    const memberAttendanceMap: Record<string, { memberId?: string; name: string; count: number; orgs: string[]; domisili: string }> = {};
+    attendances.forEach(att => {
+      const participantName = (att?.namaPeserta || '').trim();
+      const key = att?.memberId || participantName.toLowerCase();
+      if (!key) return;
+
+      if (!memberAttendanceMap[key]) {
+        const foundMember = members.find(
+          m => m && (m.id === att.memberId || (m.nama && participantName && m.nama.toLowerCase().trim() === participantName.toLowerCase()))
+        );
+        memberAttendanceMap[key] = {
+          memberId: att.memberId,
+          name: participantName || foundMember?.nama || 'Peserta',
+          count: 0,
+          orgs: foundMember?.organisasiInternal || [],
+          domisili: foundMember?.domisili || '-',
+        };
       }
+      memberAttendanceMap[key].count += 1;
     });
 
-    const topActiveMembers = Array.from(memberAttMap.values())
+    const topActiveMembers = Object.values(memberAttendanceMap)
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
 
-    const repeatAttendersCount = Array.from(memberAttMap.values()).filter(x => x.count >= 2).length;
-    const totalAttendingMembersCount = memberAttMap.size;
-    const retentionRate =
-      totalAttendingMembersCount > 0
-        ? Math.round((repeatAttendersCount / totalAttendingMembersCount) * 100)
-        : 0;
+    const membersWithMultipleAttendances = Object.values(memberAttendanceMap).filter(m => m.count > 1).length;
+    const uniqueParticipants = Object.keys(memberAttendanceMap).length;
+    const retentionRate = uniqueParticipants > 0 ? Math.round((membersWithMultipleAttendances / uniqueParticipants) * 100) : 0;
 
     return {
       totalEvents,
@@ -159,14 +171,14 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
       mostAttendedEvent,
       topNewMemberEvent,
       topRepeatMemberEvent,
-      eventLeaderboard: sortByTotal,
+      eventLeaderboard: sortByTotal.slice(0, 5),
       orgEventCounts,
       topActiveMembers,
       retentionRate,
     };
   }, [events, attendances, members, allOrgs]);
 
-  // Filtered members for interactive slice analysis across all filter angles
+  // Slicer Filtered Members
   const filteredData = useMemo(() => {
     return members.filter(m => {
       const matchOrg =
@@ -196,7 +208,13 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
         else if (selectedAgeRangeFilter === '>40') matchAge = age > 40;
       }
 
-      return matchOrg && matchDapil && matchPembinaan && matchJenjang && matchEdu && matchAge;
+      let matchAnakKader = true;
+      if (selectedAnakKaderFilter !== 'Semua') {
+        if (selectedAnakKaderFilter === 'ya') matchAnakKader = !!m.isAnakKader;
+        else if (selectedAnakKaderFilter === 'bukan') matchAnakKader = !m.isAnakKader;
+      }
+
+      return matchOrg && matchDapil && matchPembinaan && matchJenjang && matchEdu && matchAge && matchAnakKader;
     });
   }, [
     members,
@@ -206,6 +224,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
     selectedJenjangFilter,
     selectedPendidikanFilter,
     selectedAgeRangeFilter,
+    selectedAnakKaderFilter,
   ]);
 
   // Key KPI Metrics
@@ -502,13 +521,31 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
       .slice(0, 10);
   }, [filteredData]);
 
+  // Status Anak Kader Distribution & Ratio
+  const anakKaderStats = useMemo(() => {
+    const total = filteredData.length;
+    const anakKaderCount = filteredData.filter(m => m.isAnakKader).length;
+    const bukanCount = total - anakKaderCount;
+    const percent = total > 0 ? Math.round((anakKaderCount / total) * 100) : 0;
+    return {
+      anakKaderCount,
+      bukanCount,
+      percent,
+      chartData: [
+        { name: 'Anak Kader', value: anakKaderCount, color: '#8B5CF6' },
+        { name: 'Bukan Anak Kader', value: bukanCount, color: '#CBD5E1' },
+      ],
+    };
+  }, [filteredData]);
+
   const hasActiveFilters =
     selectedOrgFilter !== 'Semua' ||
     selectedDapilFilter !== 'Semua' ||
     selectedPembinaanFilter !== 'Semua' ||
     selectedJenjangFilter !== 'Semua' ||
     selectedPendidikanFilter !== 'Semua' ||
-    selectedAgeRangeFilter !== 'Semua';
+    selectedAgeRangeFilter !== 'Semua' ||
+    selectedAnakKaderFilter !== 'Semua';
 
   const handleResetFilters = () => {
     setSelectedOrgFilter('Semua');
@@ -517,6 +554,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
     setSelectedJenjangFilter('Semua');
     setSelectedPendidikanFilter('Semua');
     setSelectedAgeRangeFilter('Semua');
+    setSelectedAnakKaderFilter('Semua');
   };
 
   return (
@@ -627,6 +665,17 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
             <option value="25-30">25 - 30 Tahun</option>
             <option value="31-40">31 - 40 Tahun</option>
             <option value=">40">&gt; 40 Tahun</option>
+          </select>
+
+          {/* Angle 7: Status Anak Kader */}
+          <select
+            value={selectedAnakKaderFilter}
+            onChange={e => setSelectedAnakKaderFilter(e.target.value as any)}
+            className="bg-slate-50 text-slate-800 border border-slate-200 text-xs rounded-lg px-2.5 py-1.5 outline-none focus:border-[#F27D26] font-semibold"
+          >
+            <option value="Semua">Semua Status Kader</option>
+            <option value="ya">👑 Anak Kader</option>
+            <option value="bukan">Bukan Anak Kader</option>
           </select>
 
           {hasActiveFilters && (
@@ -871,14 +920,14 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
         </div>
       </div>
 
-      {/* ROW 3: EKOSISTEM KADERISASI & PEMBINAAN */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Status & Jenjang Pembinaan Chart */}
+      {/* ROW 3: EKOSISTEM KADERISASI, STATUS ANAK KADER & PEMBINAAN */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* 1. Status & Jenjang Pembinaan Chart */}
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
               <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
-              <span>Komposisi Status & Jenjang Pembinaan</span>
+              <span>Komposisi Status Pembinaan</span>
             </h3>
             <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
               {activePembinaanPercent}% Terbina
@@ -908,12 +957,47 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
           </div>
         </div>
 
-        {/* Leaderboard Pembina / Mentor */}
+        {/* 2. Status Anak Kader (Regenerasi Keluarga Kader PKS) */}
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
+              <Users className="w-3.5 h-3.5 text-purple-500" />
+              <span>Rasio Status Anak Kader PKS</span>
+            </h3>
+            <span className="text-[10px] text-purple-700 font-bold bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+              {anakKaderStats.percent}% Anak Kader
+            </span>
+          </div>
+
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={anakKaderStats.chartData}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={65}
+                  dataKey="value"
+                >
+                  {anakKaderStats.chartData.map((entry, idx) => (
+                    <Cell key={`ak-cell-${idx}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', color: '#1e293b', fontSize: '11px' }}
+                />
+                <Legend formatter={(value) => <span className="text-[11px] text-slate-600 font-medium">{value}</span>} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* 3. Leaderboard Pembina / Mentor */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs md:col-span-2 lg:col-span-1">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
               <Award className="w-3.5 h-3.5 text-amber-500" />
-              <span>Distribusi Mentor / Pembina Kader</span>
+              <span>Distribusi Mentor / Pembina</span>
             </h3>
             <span className="text-[10px] text-slate-500 font-medium">Beban Binaan</span>
           </div>
@@ -1242,7 +1326,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
                   const rating = getActivityRating(item.count, eventStats.totalEvents);
                   return (
                     <div
-                      key={item.member.id}
+                      key={item.memberId || item.name || idx}
                       className="p-2.5 bg-white rounded-xl border border-slate-200/90 shadow-2xs flex items-center justify-between gap-2"
                     >
                       <div className="flex items-center space-x-2 min-w-0">
@@ -1251,10 +1335,10 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
                         </span>
                         <div className="min-w-0">
                           <span className="font-bold text-slate-900 block truncate">
-                            {item.member.nama}
+                            {item.name}
                           </span>
                           <span className="text-[10px] text-slate-500">
-                            Kec. {item.member.domisili}
+                            Kec. {item.domisili}
                           </span>
                         </div>
                       </div>

@@ -44,6 +44,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
 }) => {
   const [nama, setNama] = useState('');
   const [namaPanggilan, setNamaPanggilan] = useState('');
+  const [isAnakKader, setIsAnakKader] = useState(false);
   const [nomorHp, setNomorHp] = useState('');
   const [organisasiInternal, setOrganisasiInternal] = useState<OrganisasiType[]>([]);
   const [tglLahir, setTglLahir] = useState('');
@@ -78,6 +79,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
     if (initialMember) {
       setNama(initialMember.nama || '');
       setNamaPanggilan(initialMember.namaPanggilan || '');
+      setIsAnakKader(!!initialMember.isAnakKader);
       setNomorHp(initialMember.nomorHp || '');
       setOrganisasiInternal(initialMember.organisasiInternal || []);
       setTglLahir(initialMember.tglLahir || '');
@@ -101,6 +103,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       // Default reset
       setNama('');
       setNamaPanggilan('');
+      setIsAnakKader(false);
       setNomorHp('');
       setOrganisasiInternal(['PKS Muda']);
       setTglLahir('2002-01-01');
@@ -203,6 +206,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
     const payload: Omit<Member, 'id' | 'createdAt' | 'updatedAt'> = {
       nama: nama.trim(),
       namaPanggilan: namaPanggilan.trim() || undefined,
+      isAnakKader,
       nomorHp: nomorHp.trim(),
       organisasiInternal,
       tglLahir,
@@ -379,6 +383,26 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                   placeholder="contoh@gmail.com"
                   className="w-full bg-white border border-slate-200 focus:border-[#F27D26] text-slate-900 text-sm rounded-xl px-3.5 py-2.5 outline-none font-medium"
                 />
+              </div>
+
+              {/* Checkbox: Anak Kader */}
+              <div className="md:col-span-2 pt-1">
+                <label className="flex items-center space-x-3 p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-orange-300 transition-colors select-none">
+                  <input
+                    type="checkbox"
+                    checked={isAnakKader}
+                    onChange={e => setIsAnakKader(e.target.checked)}
+                    className="w-4 h-4 text-[#F27D26] rounded border-slate-300 focus:ring-[#F27D26] accent-[#F27D26]"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+                      <span>👑 Anak Kader (Putra / Putri dari Kader PKS)</span>
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-medium block">
+                      Centang opsi ini jika anggota merupakan anak atau keluarga inti dari kader PKS
+                    </span>
+                  </div>
+                </label>
               </div>
             </div>
           </div>

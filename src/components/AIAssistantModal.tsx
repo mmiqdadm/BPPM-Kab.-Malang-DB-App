@@ -105,12 +105,13 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
     const textLower = (text + ' ' + userPrompt).toLowerCase();
 
     members.forEach(member => {
+      if (!member || !member.nama) return;
       const nameLower = member.nama.toLowerCase();
       // Match if exact name is in text or if user searched specifically for member
       if (
         nameLower.length > 3 &&
         (textLower.includes(nameLower) ||
-          member.keahlian.some(k => k.toLowerCase().length > 3 && textLower.includes(k.toLowerCase())))
+          (member.keahlian || []).some(k => k && k.toLowerCase().length > 3 && textLower.includes(k.toLowerCase())))
       ) {
         if (!matched.some(m => m.id === member.id)) {
           matched.push(member);

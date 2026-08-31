@@ -156,7 +156,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                     <button
                       onClick={onOpenAdminMgmt}
                       className="p-1 text-slate-500 hover:text-[#F27D26] hover:bg-white rounded transition-colors"
-                      title="Kelola Akun Admin & Organisasi"
+                      title="Kelola Akun Admin, Organisasi & Log Aktivitas"
                     >
                       <UserCheck className="w-3.5 h-3.5" />
                     </button>
