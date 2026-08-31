@@ -67,6 +67,15 @@ export const AdminManagementModal: React.FC<AdminManagementModalProps> = ({
       setMsg(null);
       setEditingOrg(null);
     }
+
+    const handleAdminsUpdated = () => {
+      fetchAdmins();
+    };
+
+    window.addEventListener('pks_admins_updated', handleAdminsUpdated);
+    return () => {
+      window.removeEventListener('pks_admins_updated', handleAdminsUpdated);
+    };
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -86,7 +95,15 @@ export const AdminManagementModal: React.FC<AdminManagementModalProps> = ({
       setNewUsername('');
       setNewName('');
       setNewPassword('');
-      fetchAdmins();
+      setNewRole('admin');
+      if (res.admin) {
+        setAdmins(prev => {
+          const filtered = prev.filter(
+            a => a.id !== res.admin!.id && a.username.toLowerCase() !== res.admin!.username.toLowerCase()
+          );
+          return [...filtered, res.admin!];
+        });
+      }
     } else {
       setMsg({ type: 'error', text: res.message });
     }
@@ -100,12 +117,13 @@ export const AdminManagementModal: React.FC<AdminManagementModalProps> = ({
 
     if (!confirm(`Apakah Anda yakin ingin menghapus akun admin "${name}"?`)) return;
 
+    setAdmins(prev => prev.filter(a => a.id !== id));
     const res = await deleteAdminUser(id);
     if (res.success) {
       setMsg({ type: 'success', text: res.message });
-      fetchAdmins();
     } else {
       setMsg({ type: 'error', text: res.message });
+      fetchAdmins();
     }
   };
 

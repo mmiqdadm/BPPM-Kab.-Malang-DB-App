@@ -18,6 +18,7 @@ export interface SosmedInfo {
 export interface Member {
   id: string;
   nama: string; // Mandatory
+  namaPanggilan?: string; // Optional / Nickname
   nomorHp: string;
   organisasiInternal: OrganisasiType[]; // Checklist multi-select
   tglLahir: string; // YYYY-MM-DD

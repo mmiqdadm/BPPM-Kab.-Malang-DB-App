@@ -11,6 +11,7 @@ export function exportMembersToExcel(members: Member[], filenamePrefix = 'Databa
     return {
       No: index + 1,
       'Nama Lengkap': m.nama,
+      'Nama Panggilan': m.namaPanggilan || '-',
       'Nomor HP / WA': m.nomorHp || '-',
       'Organisasi Internal': (m.organisasiInternal || []).join(', ') || '-',
       'Tanggal Lahir': m.tglLahir ? formatDateIndonesian(m.tglLahir) : '-',

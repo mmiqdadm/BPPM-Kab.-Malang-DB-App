@@ -4,6 +4,7 @@ import { db, auth } from './firebase';
 import { doc, getDoc, setDoc, deleteDoc, getDocs, collection } from 'firebase/firestore';
 
 const ADMIN_STORAGE_KEY = 'pks_youth_admins_v1';
+const DELETED_ADMINS_STORAGE_KEY = 'pks_youth_deleted_admins_v1';
 const CURRENT_SESSION_KEY = 'pks_youth_session_v1';
 
 // Default initial Super Admin
@@ -16,24 +17,43 @@ export const SUPER_ADMIN_DEFAULT: Omit<AdminUser, 'passwordHash'> & { defaultPas
   createdAt: '2026-01-01T00:00:00.000Z',
 };
 
-export async function initializeAdminsStore(): Promise<AdminUser[]> {
+function getDeletedAdminIds(): Set<string> {
   try {
-    // Try reading from Firestore first
-    const colSnap = await getDocs(collection(db, 'admins'));
-    if (!colSnap.empty) {
-      const firestoreAdmins: AdminUser[] = colSnap.docs.map(d => d.data() as AdminUser);
-      localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(firestoreAdmins));
-      return firestoreAdmins;
-    }
+    const raw = localStorage.getItem(DELETED_ADMINS_STORAGE_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
 
-    // Fallback or Initial Seed
+function saveDeletedAdminId(id: string): void {
+  try {
+    const set = getDeletedAdminIds();
+    set.add(id);
+    localStorage.setItem(DELETED_ADMINS_STORAGE_KEY, JSON.stringify(Array.from(set)));
+  } catch (err) {
+    console.error('Failed to save deleted admin id:', err);
+  }
+}
+
+function removeDeletedAdminId(id: string): void {
+  try {
+    const set = getDeletedAdminIds();
+    set.delete(id);
+    localStorage.setItem(DELETED_ADMINS_STORAGE_KEY, JSON.stringify(Array.from(set)));
+  } catch (err) {
+    console.error('Failed to remove deleted admin id:', err);
+  }
+}
+
+export function loadAdminsFromLocal(): AdminUser[] {
+  try {
     const raw = localStorage.getItem(ADMIN_STORAGE_KEY);
-    let initialList: AdminUser[] = [];
-    if (raw) {
-      initialList = JSON.parse(raw);
-    } else {
-      const superHash = await hashPassword(SUPER_ADMIN_DEFAULT.defaultPassword);
-      initialList = [
+    const deletedIds = getDeletedAdminIds();
+
+    if (!raw) {
+      const superHash = 'c697e00e4751478ec11abf1d6a6200fd4199c0d388654a1d471540a927a4d531';
+      const initialList: AdminUser[] = [
         {
           id: SUPER_ADMIN_DEFAULT.id,
           username: SUPER_ADMIN_DEFAULT.username,
@@ -44,19 +64,64 @@ export async function initializeAdminsStore(): Promise<AdminUser[]> {
         },
       ];
       localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(initialList));
+      return initialList;
     }
-
-    // Seed to Firestore
-    for (const a of initialList) {
-      await setDoc(doc(db, 'admins', a.id), a).catch(console.error);
+    const parsed: AdminUser[] = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.filter(a => a && a.id && !deletedIds.has(a.id));
     }
+    return [];
+  } catch {
+    return [];
+  }
+}
 
-    return initialList;
+export function saveAdminsToLocal(admins: AdminUser[], notify: boolean = true): void {
+  try {
+    localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(admins));
+    if (notify && typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('pks_admins_updated'));
+    }
   } catch (err) {
-    console.error('Failed to init admins store:', err);
-    // Fallback to local
-    const raw = localStorage.getItem(ADMIN_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    console.error('Failed to save admins locally:', err);
+  }
+}
+
+export async function initializeAdminsStore(): Promise<AdminUser[]> {
+  const localList = loadAdminsFromLocal();
+  const deletedIds = getDeletedAdminIds();
+
+  try {
+    // Try reading from Firestore
+    const colSnap = await getDocs(collection(db, 'admins'));
+    if (!colSnap.empty) {
+      const firestoreAdmins: AdminUser[] = colSnap.docs
+        .map(d => d.data() as AdminUser)
+        .filter(a => a && a.id && !deletedIds.has(a.id));
+      
+      // Merge Firestore admins with Local admins (local admins preserved, deleted excluded)
+      const adminMap = new Map<string, AdminUser>();
+      localList.forEach(a => {
+        if (a && a.id && !deletedIds.has(a.id)) adminMap.set(a.id, a);
+      });
+      firestoreAdmins.forEach(a => {
+        if (a && a.id && !deletedIds.has(a.id)) adminMap.set(a.id, a);
+      });
+
+      const merged = Array.from(adminMap.values());
+      saveAdminsToLocal(merged, false); // save silently to prevent recursive loop
+      return merged;
+    } else {
+      // If firestore is empty, seed existing local admins to firestore
+      for (const a of localList) {
+        await setDoc(doc(db, 'admins', a.id), a).catch(() => {});
+      }
+    }
+
+    return localList;
+  } catch (err) {
+    console.warn('Firestore admins fetch warning (using local store):', err);
+    return localList;
   }
 }
 
@@ -113,7 +178,7 @@ export async function createNewAdmin(
     return { success: false, message: 'Hanya Super Admin yang dapat menambahkan admin baru!' };
   }
 
-  const admins = await getAdminsList();
+  const admins = loadAdminsFromLocal();
   const trimmedUser = newUsername.trim();
 
   if (!trimmedUser || !newPassword.trim() || !name.trim()) {
@@ -126,7 +191,7 @@ export async function createNewAdmin(
 
   const passHash = await hashPassword(newPassword);
   const newAdminObj: AdminUser = {
-    id: `admin_${Date.now()}`,
+    id: `admin_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     username: trimmedUser,
     name: name.trim(),
     passwordHash: passHash,
@@ -134,11 +199,15 @@ export async function createNewAdmin(
     createdAt: new Date().toISOString(),
   };
 
-  admins.push(newAdminObj);
-  localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(admins));
+  removeDeletedAdminId(newAdminObj.id);
 
-  // Sync to Firestore
-  await setDoc(doc(db, 'admins', newAdminObj.id), newAdminObj).catch(console.error);
+  admins.push(newAdminObj);
+  saveAdminsToLocal(admins, true);
+
+  // Sync to Firestore in background (non-blocking)
+  setDoc(doc(db, 'admins', newAdminObj.id), newAdminObj).catch(err => {
+    console.warn('Firestore setDoc warning for admin:', err);
+  });
 
   return { success: true, message: 'Admin baru berhasil ditambahkan.', admin: newAdminObj };
 }
@@ -157,12 +226,17 @@ export async function deleteAdminUser(adminIdToDelete: string): Promise<{ succes
     return { success: false, message: 'Anda tidak dapat menghapus akun Anda sendiri saat sedang login.' };
   }
 
-  let admins = await getAdminsList();
+  // Record tombstone so this deleted admin won't be resurrected by remote merge
+  saveDeletedAdminId(adminIdToDelete);
+
+  let admins = loadAdminsFromLocal();
   admins = admins.filter(a => a.id !== adminIdToDelete);
-  localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(admins));
+  saveAdminsToLocal(admins, true);
 
   // Sync delete to Firestore
-  await deleteDoc(doc(db, 'admins', adminIdToDelete)).catch(console.error);
+  deleteDoc(doc(db, 'admins', adminIdToDelete)).catch(err => {
+    console.warn('Firestore deleteDoc warning for admin:', err);
+  });
 
   return { success: true, message: 'Admin berhasil dihapus.' };
 }

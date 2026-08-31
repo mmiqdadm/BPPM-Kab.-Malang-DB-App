@@ -121,7 +121,14 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
           <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl relative overflow-hidden">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900">{member.nama}</h2>
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 flex flex-wrap items-center gap-2">
+                  <span>{member.nama}</span>
+                  {member.namaPanggilan && (
+                    <span className="text-sm sm:text-base font-bold text-[#F27D26] bg-orange-50 px-2 py-0.5 rounded-lg border border-orange-200">
+                      ({member.namaPanggilan})
+                    </span>
+                  )}
+                </h2>
                 <div className="flex flex-wrap items-center gap-2 mt-2">
                   <span className="bg-orange-50 text-[#F27D26] border border-orange-200 text-xs font-semibold px-2.5 py-0.5 rounded-full flex items-center space-x-1">
                     <MapPin className="w-3 h-3" />

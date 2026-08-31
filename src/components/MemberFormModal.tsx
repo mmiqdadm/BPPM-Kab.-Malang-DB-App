@@ -18,7 +18,7 @@ import {
   loadMembersFromLocal,
   getAllOrganizations,
 } from '../lib/storage';
-import { X, Check, Plus, Trash2, Calendar, User, Phone, Mail, MapPin, Briefcase, GraduationCap, Award, Heart, Sparkles, MessageSquare } from 'lucide-react';
+import { X, Check, Plus, Trash2, Calendar, User, Phone, Mail, MapPin, Briefcase, GraduationCap, Award, Heart, Sparkles, MessageSquare, AlertCircle } from 'lucide-react';
 
 interface MemberFormModalProps {
   isOpen: boolean;
@@ -27,6 +27,11 @@ interface MemberFormModalProps {
   initialMember?: Member | null;
   adminName: string;
   existingMembers?: Member[];
+}
+
+interface DuplicateMatch {
+  member: Member;
+  reasons: string[];
 }
 
 export const MemberFormModal: React.FC<MemberFormModalProps> = ({
@@ -38,6 +43,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
   existingMembers,
 }) => {
   const [nama, setNama] = useState('');
+  const [namaPanggilan, setNamaPanggilan] = useState('');
   const [nomorHp, setNomorHp] = useState('');
   const [organisasiInternal, setOrganisasiInternal] = useState<OrganisasiType[]>([]);
   const [tglLahir, setTglLahir] = useState('');
@@ -62,11 +68,16 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
   const [allOrgs, setAllOrgs] = useState<string[]>(getAllOrganizations());
 
   const [errors, setErrors] = useState<{ nama?: string }>({});
+  const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[]>([]);
+  const [pendingPayload, setPendingPayload] = useState<Omit<Member, 'id' | 'createdAt' | 'updatedAt'> | null>(null);
 
   useEffect(() => {
     setAllOrgs(getAllOrganizations());
+    setDuplicateMatches([]);
+    setPendingPayload(null);
     if (initialMember) {
       setNama(initialMember.nama || '');
+      setNamaPanggilan(initialMember.namaPanggilan || '');
       setNomorHp(initialMember.nomorHp || '');
       setOrganisasiInternal(initialMember.organisasiInternal || []);
       setTglLahir(initialMember.tglLahir || '');
@@ -89,6 +100,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
     } else {
       // Default reset
       setNama('');
+      setNamaPanggilan('');
       setNomorHp('');
       setOrganisasiInternal(['PKS Muda']);
       setTglLahir('2002-01-01');
@@ -190,6 +202,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
 
     const payload: Omit<Member, 'id' | 'createdAt' | 'updatedAt'> = {
       nama: nama.trim(),
+      namaPanggilan: namaPanggilan.trim() || undefined,
       nomorHp: nomorHp.trim(),
       organisasiInternal,
       tglLahir,
@@ -214,7 +227,43 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       createdBy: initialMember?.createdBy || adminName,
     };
 
+    // Check duplicate Nama Lengkap or Nomor HP
+    const membersList = existingMembers || loadMembersFromLocal();
+    const cleanCurrentName = nama.trim().toLowerCase();
+    const cleanCurrentHp = nomorHp.replace(/\D/g, '');
+
+    const matches: DuplicateMatch[] = [];
+
+    membersList.forEach(m => {
+      if (initialMember && m.id === initialMember.id) return;
+
+      const reasons: string[] = [];
+      const mName = (m.nama || '').trim().toLowerCase();
+      const mHp = (m.nomorHp || '').replace(/\D/g, '');
+
+      if (cleanCurrentName && mName === cleanCurrentName) {
+        reasons.push('Nama Lengkap sama persis');
+      }
+
+      if (cleanCurrentHp.length >= 8 && mHp.length >= 8) {
+        if (cleanCurrentHp === mHp || cleanCurrentHp.slice(-8) === mHp.slice(-8)) {
+          reasons.push('Nomor HP / WhatsApp terdeteksi sama');
+        }
+      }
+
+      if (reasons.length > 0) {
+        matches.push({ member: m, reasons });
+      }
+    });
+
+    if (matches.length > 0) {
+      setDuplicateMatches(matches);
+      setPendingPayload(payload);
+      return;
+    }
+
     onSave(payload, initialMember?.id);
+    onClose();
   };
 
   return (
@@ -249,7 +298,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Nama (Wajib) */}
+              {/* Nama Lengkap (Wajib) */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Nama Lengkap <span className="text-red-500">*</span>
@@ -261,13 +310,27 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                     setNama(e.target.value);
                     if (errors.nama) setErrors({});
                   }}
-                  placeholder="Contoh: Ahmad Fauzi"
+                  placeholder="Contoh: Ahmad Fauzi Pratama"
                   className={`w-full bg-white border ${
                     errors.nama ? 'border-red-500' : 'border-slate-200'
                   } focus:border-[#F27D26] text-slate-900 text-sm rounded-xl px-3.5 py-2.5 outline-none font-medium`}
                   required
                 />
                 {errors.nama && <p className="text-[11px] text-red-500 mt-1 font-medium">{errors.nama}</p>}
+              </div>
+
+              {/* Nama Panggilan (Opsional) */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Nama Panggilan
+                </label>
+                <input
+                  type="text"
+                  value={namaPanggilan}
+                  onChange={e => setNamaPanggilan(e.target.value)}
+                  placeholder="Contoh: Fauzi"
+                  className="w-full bg-white border border-slate-200 focus:border-[#F27D26] text-slate-900 text-sm rounded-xl px-3.5 py-2.5 outline-none font-medium"
+                />
               </div>
 
               {/* Nomor HP */}
@@ -719,6 +782,93 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
             </button>
           </div>
         </form>
+
+        {/* Duplicate Data Warning Confirmation Modal */}
+        {duplicateMatches.length > 0 && (
+          <div className="fixed inset-0 z-[60] bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-150">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-5 shadow-2xl border border-slate-200 space-y-4 my-auto">
+              <div className="flex items-start space-x-3 border-b border-slate-100 pb-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <div className="space-y-0.5">
+                  <h3 className="font-bold text-slate-900 text-base">
+                    Peringatan: Kemungkinan Duplikat!
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Sistem mendeteksi ada anggota dengan Nama atau Nomor HP yang sama di database:
+                  </p>
+                </div>
+              </div>
+
+              {/* List of Matched Duplicates */}
+              <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                {duplicateMatches.map((dm, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 text-xs space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 text-sm">
+                        {dm.member.nama} {dm.member.namaPanggilan ? `(${dm.member.namaPanggilan})` : ''}
+                      </span>
+                      <span className="text-[10px] bg-amber-200 text-amber-800 font-bold px-2 py-0.5 rounded-full">
+                        Kec. {dm.member.domisili}
+                      </span>
+                    </div>
+
+                    <div className="text-[11px] text-slate-600 space-y-0.5">
+                      <p>📱 HP / WA: <span className="font-semibold text-slate-800">{dm.member.nomorHp || '-'}</span></p>
+                      <p>🏷️ Organisasi: <span className="font-semibold text-slate-800">{(dm.member.organisasiInternal || []).join(', ')}</span></p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1 pt-1 border-t border-amber-200/60">
+                      {dm.reasons.map((r, rIdx) => (
+                        <span
+                          key={rIdx}
+                          className="bg-red-100 text-red-700 font-bold text-[10px] px-2 py-0.5 rounded-md"
+                        >
+                          ⚠️ {r}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-xs text-slate-600 font-medium bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                Apakah Anda yakin ingin tetap menyimpan data anggota ini ke dalam database?
+              </p>
+
+              <div className="flex items-center justify-end space-x-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDuplicateMatches([]);
+                    setPendingPayload(null);
+                  }}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors"
+                >
+                  Batal & Periksa Kembali
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (pendingPayload) {
+                      onSave(pendingPayload, initialMember?.id);
+                    }
+                    setDuplicateMatches([]);
+                    setPendingPayload(null);
+                    onClose();
+                  }}
+                  className="px-5 py-2 bg-[#F27D26] hover:bg-orange-600 text-white text-xs font-bold rounded-xl shadow-md transition-all"
+                >
+                  Ya, Tetap Simpan Data Ini
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

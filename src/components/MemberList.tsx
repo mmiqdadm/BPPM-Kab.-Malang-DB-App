@@ -138,6 +138,7 @@ export const MemberList: React.FC<MemberListProps> = ({
         if (search.trim()) {
           const q = search.toLowerCase();
           const matchName = m.nama.toLowerCase().includes(q);
+          const matchNickname = (m.namaPanggilan || '').toLowerCase().includes(q);
           const matchHp = m.nomorHp.toLowerCase().includes(q);
           const matchDom = m.domisili.toLowerCase().includes(q);
           const matchEdu = m.pendidikan.toLowerCase().includes(q);
@@ -148,6 +149,7 @@ export const MemberList: React.FC<MemberListProps> = ({
           const matchPembina = (m.namaPembina || '').toLowerCase().includes(q);
           if (
             !matchName &&
+            !matchNickname &&
             !matchHp &&
             !matchDom &&
             !matchEdu &&
@@ -631,9 +633,14 @@ export const MemberList: React.FC<MemberListProps> = ({
                       <td className="py-2.5 px-3">
                         <div
                           onClick={() => onViewMember(m)}
-                          className="font-bold text-slate-900 hover:text-[#F27D26] cursor-pointer text-xs"
+                          className="font-bold text-slate-900 hover:text-[#F27D26] cursor-pointer text-xs flex items-center gap-1.5 flex-wrap"
                         >
-                          {m.nama}
+                          <span>{m.nama}</span>
+                          {m.namaPanggilan && (
+                            <span className="text-[10px] font-semibold text-[#F27D26] bg-orange-50 px-1.5 py-0.2 rounded border border-orange-200">
+                              {m.namaPanggilan}
+                            </span>
+                          )}
                         </div>
                         <div className="text-[10px] text-slate-500 mt-0.5">
                           {m.tglLahir ? formatDateIndonesian(m.tglLahir) : '-'}{' '}
@@ -772,9 +779,14 @@ export const MemberList: React.FC<MemberListProps> = ({
                       </span>
                       <h4
                         onClick={() => onViewMember(m)}
-                        className="font-extrabold text-slate-900 text-xs sm:text-sm hover:text-[#F27D26] cursor-pointer truncate"
+                        className="font-extrabold text-slate-900 text-xs sm:text-sm hover:text-[#F27D26] cursor-pointer truncate flex items-center gap-1.5"
                       >
-                        {m.nama}
+                        <span>{m.nama}</span>
+                        {m.namaPanggilan && (
+                          <span className="text-[10px] font-semibold text-[#F27D26] bg-orange-50 px-1.5 py-0.2 rounded border border-orange-200 shrink-0">
+                            {m.namaPanggilan}
+                          </span>
+                        )}
                       </h4>
                     </div>
 
