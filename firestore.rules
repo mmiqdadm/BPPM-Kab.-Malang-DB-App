@@ -21,7 +21,7 @@ service cloud.firestore {
       return data.username is string && data.username.size() >= 3 && data.username.size() <= 50
         && data.name is string && data.name.size() >= 2 && data.name.size() <= 100
         && data.passwordHash is string
-        && (data.role == 'superadmin' || data.role == 'admin');
+        && (data.role == 'superadmin' || data.role == 'admin' || data.role == 'viewer');
     }
 
     // Members collection

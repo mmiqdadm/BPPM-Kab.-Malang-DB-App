@@ -41,7 +41,7 @@ export const AdminManagementModal: React.FC<AdminManagementModalProps> = ({
   const [newUsername, setNewUsername] = useState('');
   const [newName, setNewName] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [newRole, setNewRole] = useState<'admin' | 'superadmin'>('admin');
+  const [newRole, setNewRole] = useState<AdminRole>('admin');
 
   // Custom organizations state
   const [customOrgs, setCustomOrgs] = useState<string[]>([]);
