@@ -111,21 +111,25 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               </button>
             )}
 
-            <button
-              onClick={onOpenBulkImport}
-              className="hidden sm:flex items-center space-x-1 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>Import</span>
-            </button>
+            {currentAdmin?.role !== 'viewer' && (
+              <>
+                <button
+                  onClick={onOpenBulkImport}
+                  className="hidden sm:flex items-center space-x-1 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Import</span>
+                </button>
 
-            <button
-              onClick={onOpenAddMember}
-              className="bg-[#F27D26] hover:bg-orange-600 text-white px-2.5 py-1 rounded-lg text-xs font-bold shadow-xs transition-all flex items-center space-x-1"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Input</span>
-            </button>
+                <button
+                  onClick={onOpenAddMember}
+                  className="bg-[#F27D26] hover:bg-orange-600 text-white px-2.5 py-1 rounded-lg text-xs font-bold shadow-xs transition-all flex items-center space-x-1"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Input</span>
+                </button>
+              </>
+            )}
 
             {/* Admin User Control */}
             {currentAdmin && (
@@ -135,8 +139,16 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                     <span className="text-[11px] font-bold text-slate-800 block leading-tight">
                       {currentAdmin.name}
                     </span>
-                    <span className="text-[9px] text-[#F27D26] font-bold uppercase block leading-tight">
-                      {currentAdmin.role}
+                    <span
+                      className={`text-[9px] font-bold uppercase block leading-tight ${
+                        currentAdmin.role === 'superadmin'
+                          ? 'text-amber-600'
+                          : currentAdmin.role === 'viewer'
+                          ? 'text-purple-600'
+                          : 'text-[#F27D26]'
+                      }`}
+                    >
+                      {currentAdmin.role === 'viewer' ? 'Viewer (Lihat)' : currentAdmin.role}
                     </span>
                   </div>
 
@@ -144,7 +156,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                     <button
                       onClick={onOpenAdminMgmt}
                       className="p-1 text-slate-500 hover:text-[#F27D26] hover:bg-white rounded transition-colors"
-                      title="Kelola Akun Admin"
+                      title="Kelola Akun Admin & Organisasi"
                     >
                       <UserCheck className="w-3.5 h-3.5" />
                     </button>

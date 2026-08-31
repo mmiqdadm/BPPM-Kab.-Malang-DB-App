@@ -37,10 +37,12 @@ export const KECAMATAN_MALANG = [
   'Sumberpucung',
   'Tajinan',
   'Tirtoyudo',
+  'Tumpang',
   'Turen',
   'Wagir',
   'Wajak',
   'Wonosari',
+  'Luar Kota',
 ];
 
 export const DAPIL_MALANG: Record<string, string[]> = {
@@ -51,9 +53,10 @@ export const DAPIL_MALANG: Record<string, string[]> = {
   'Dapil 5': ['Wagir', 'Dau', 'Karangploso', 'Pujon', 'Ngantang', 'Kasembon'],
   'Dapil 6': ['Pakis', 'Singosari', 'Lawang'],
   'Dapil 7': ['Poncokusumo', 'Wajak', 'Tajinan', 'Tumpang', 'Jabung'],
+  'Luar Kota': ['Luar Kota'],
 };
 
-export const DAPIL_LIST = ['Dapil 1', 'Dapil 2', 'Dapil 3', 'Dapil 4', 'Dapil 5', 'Dapil 6', 'Dapil 7'];
+export const DAPIL_LIST = ['Dapil 1', 'Dapil 2', 'Dapil 3', 'Dapil 4', 'Dapil 5', 'Dapil 6', 'Dapil 7', 'Luar Kota'];
 
 export const JENJANG_PEMBINAAN_LIST: JenjangPembinaanType[] = ['Muda', 'Pratama', 'Madya'];
 

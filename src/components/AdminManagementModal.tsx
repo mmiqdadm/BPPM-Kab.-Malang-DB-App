@@ -316,8 +316,9 @@ export const AdminManagementModal: React.FC<AdminManagementModalProps> = ({
                       onChange={e => setNewRole(e.target.value as any)}
                       className="w-full bg-white border border-slate-200 focus:border-[#F27D26] text-slate-900 text-xs font-medium rounded-lg p-2.5 outline-none"
                     >
-                      <option value="admin">Admin Biasa</option>
-                      <option value="superadmin">Super Admin</option>
+                      <option value="admin">Admin Editor (Kelola Data)</option>
+                      <option value="viewer">Admin Viewer (Hanya Lihat Data)</option>
+                      <option value="superadmin">Super Admin (Akses Penuh)</option>
                     </select>
                   </div>
                 </div>
@@ -349,10 +350,12 @@ export const AdminManagementModal: React.FC<AdminManagementModalProps> = ({
                             className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
                               a.role === 'superadmin'
                                 ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                : a.role === 'viewer'
+                                ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                : 'bg-blue-50 text-blue-700 border border-blue-200'
                             }`}
                           >
-                            {a.role}
+                            {a.role === 'viewer' ? 'Viewer' : a.role}
                           </span>
                         </div>
                         <p className="text-[10px] text-slate-400 mt-0.5 font-medium">

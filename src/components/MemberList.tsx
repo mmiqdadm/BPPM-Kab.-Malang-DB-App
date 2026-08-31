@@ -24,6 +24,7 @@ import {
   ExternalLink,
   Star,
   CalendarCheck,
+  ArrowUpDown,
 } from 'lucide-react';
 
 interface MemberListProps {
@@ -36,6 +37,7 @@ interface MemberListProps {
   onEditMember: (m: Member) => void;
   onDeleteMember: (id: string, nama: string) => void;
   externalSearchTerm?: string;
+  canEdit?: boolean;
 }
 
 export const MemberList: React.FC<MemberListProps> = ({
@@ -48,6 +50,7 @@ export const MemberList: React.FC<MemberListProps> = ({
   onEditMember,
   onDeleteMember,
   externalSearchTerm,
+  canEdit = true,
 }) => {
   const [search, setSearch] = useState(externalSearchTerm || '');
 
@@ -323,18 +326,27 @@ export const MemberList: React.FC<MemberListProps> = ({
 
           {/* Sort & Filter Controls */}
           <div className="flex items-center space-x-2">
-            <select
-              value={sortBy}
-              onChange={e => setSortBy(e.target.value as any)}
-              className="bg-slate-50 text-slate-800 border border-slate-200 text-xs rounded-xl px-2.5 py-2 outline-none focus:border-[#F27D26] font-medium shrink-0"
-            >
-              <option value="terbaru">Sort: Input Terbaru</option>
-              <option value="keaktifan_desc">Sort: Keaktifan Event</option>
-              <option value="nama_asc">Sort: Nama (A - Z)</option>
-              <option value="nama_desc">Sort: Nama (Z - A)</option>
-              <option value="usia_asc">Sort: Usia (Muda → Tua)</option>
-              <option value="usia_desc">Sort: Usia (Tua → Muda)</option>
-            </select>
+            <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 shrink-0 focus-within:border-[#F27D26]">
+              <ArrowUpDown className="w-3.5 h-3.5 text-[#F27D26] shrink-0" />
+              <label htmlFor="member-sort-select" className="text-xs font-bold text-slate-700 hidden sm:inline">
+                Sort:
+              </label>
+              <select
+                id="member-sort-select"
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value as any)}
+                className="bg-transparent text-slate-800 text-xs font-semibold outline-none cursor-pointer"
+              >
+                <option value="terbaru">🕒 Input Terbaru</option>
+                <option value="terlama">⌛ Input Terlama</option>
+                <option value="nama_asc">🔤 Nama (A → Z)</option>
+                <option value="nama_desc">🔤 Nama (Z → A)</option>
+                <option value="usia_asc">👶 Usia (Termuda → Tertua)</option>
+                <option value="usia_desc">👴 Usia (Tertua → Termuda)</option>
+                <option value="keaktifan_desc">⭐ Keaktifan Event Terbanyak</option>
+                <option value="pendidikan">🎓 Tingkat Pendidikan</option>
+              </select>
+            </div>
 
             <button
               onClick={() => setShowFilterDrawer(!showFilterDrawer)}
@@ -391,21 +403,25 @@ export const MemberList: React.FC<MemberListProps> = ({
               <span>PDF</span>
             </button>
 
-            <button
-              onClick={onOpenBulkImport}
-              className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-colors flex items-center space-x-1"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>Import</span>
-            </button>
+            {canEdit && (
+              <>
+                <button
+                  onClick={onOpenBulkImport}
+                  className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-colors flex items-center space-x-1"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Import</span>
+                </button>
 
-            <button
-              onClick={onOpenAddMember}
-              className="bg-[#F27D26] hover:bg-orange-600 text-white text-[11px] font-bold px-3 py-1 rounded-lg shadow-xs transition-all flex items-center space-x-1"
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              <span>+ Input</span>
-            </button>
+                <button
+                  onClick={onOpenAddMember}
+                  className="bg-[#F27D26] hover:bg-orange-600 text-white text-[11px] font-bold px-3 py-1 rounded-lg shadow-xs transition-all flex items-center space-x-1"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>+ Input</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -699,13 +715,15 @@ export const MemberList: React.FC<MemberListProps> = ({
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
-                          <button
-                            onClick={() => onEditMember(m)}
-                            className="p-1 text-slate-400 hover:text-[#F27D26] hover:bg-slate-100 rounded"
-                            title="Edit Data"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
+                          {canEdit && (
+                            <button
+                              onClick={() => onEditMember(m)}
+                              className="p-1 text-slate-400 hover:text-[#F27D26] hover:bg-slate-100 rounded"
+                              title="Edit Data"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           <button
                             onClick={() => exportSingleMemberCardPDF(m)}
                             className="p-1 text-slate-400 hover:text-amber-600 hover:bg-slate-100 rounded"
@@ -713,13 +731,15 @@ export const MemberList: React.FC<MemberListProps> = ({
                           >
                             <Printer className="w-3.5 h-3.5" />
                           </button>
-                          <button
-                            onClick={() => onDeleteMember(m.id, m.nama)}
-                            className="p-1 text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded"
-                            title="Hapus"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {canEdit && (
+                            <button
+                              onClick={() => onDeleteMember(m.id, m.nama)}
+                              className="p-1 text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded"
+                              title="Hapus"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -819,20 +839,24 @@ export const MemberList: React.FC<MemberListProps> = ({
                         Detail
                       </button>
 
-                      <button
-                        onClick={() => onEditMember(m)}
-                        className="px-2 py-1 bg-[#F27D26] hover:bg-orange-600 text-white text-[10px] font-bold rounded-lg transition-colors"
-                      >
-                        Edit
-                      </button>
+                      {canEdit && (
+                        <>
+                          <button
+                            onClick={() => onEditMember(m)}
+                            className="px-2 py-1 bg-[#F27D26] hover:bg-orange-600 text-white text-[10px] font-bold rounded-lg transition-colors"
+                          >
+                            Edit
+                          </button>
 
-                      <button
-                        onClick={() => onDeleteMember(m.id, m.nama)}
-                        className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Hapus Anggota"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                          <button
+                            onClick={() => onDeleteMember(m.id, m.nama)}
+                            className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Hapus Anggota"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

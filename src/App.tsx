@@ -372,6 +372,7 @@ export default function App() {
             }}
             onDeleteMember={(id, nama) => setDeleteTarget({ id, nama })}
             externalSearchTerm={memberSearchTerm}
+            canEdit={currentAdmin?.role !== 'viewer'}
           />
         )}
 
@@ -381,10 +382,12 @@ export default function App() {
             events={events}
             attendances={attendances}
             members={members}
+            currentAdminName={currentAdmin?.name || 'Admin'}
             onAddEvent={handleAddEvent}
             onDeleteEvent={handleDeleteEvent}
             onAddAttendance={handleAddAttendance}
             onDeleteAttendance={handleDeleteAttendance}
+            canEdit={currentAdmin?.role !== 'viewer'}
           />
         )}
       </main>
@@ -437,6 +440,7 @@ export default function App() {
           setEditingMember(m);
           setIsFormOpen(true);
         }}
+        canEdit={currentAdmin?.role !== 'viewer'}
       />
 
       {/* Bulk Data Import Modal */}

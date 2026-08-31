@@ -36,6 +36,7 @@ interface EventManagementProps {
     newMemberPayload?: Omit<Member, 'id' | 'createdAt' | 'updatedAt'>
   ) => void;
   onDeleteAttendance?: (id: string, nama: string) => void;
+  canEdit?: boolean;
 }
 
 export const EventManagement: React.FC<EventManagementProps> = ({
@@ -47,6 +48,7 @@ export const EventManagement: React.FC<EventManagementProps> = ({
   onDeleteEvent,
   onAddAttendance,
   onDeleteAttendance,
+  canEdit = true,
 }) => {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(
     events.length > 0 ? events[0].id : null
@@ -404,13 +406,15 @@ export const EventManagement: React.FC<EventManagementProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={() => setIsCreateEventModalOpen(true)}
-          className="bg-[#F27D26] hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl font-bold text-xs shadow-lg transition-all flex items-center justify-center space-x-2 shrink-0 border border-orange-400/30"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Buat Event Baru</span>
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => setIsCreateEventModalOpen(true)}
+            className="bg-[#F27D26] hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl font-bold text-xs shadow-lg transition-all flex items-center justify-center space-x-2 shrink-0 border border-orange-400/30"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Buat Event Baru</span>
+          </button>
+        )}
       </div>
 
       {/* Main Grid: Left Event List, Right Event Detail & Presensi */}
@@ -550,36 +554,40 @@ export const EventManagement: React.FC<EventManagementProps> = ({
                   </div>
 
                   <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => setIsBulkPresensiModalOpen(true)}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center space-x-1"
-                      title="Bulk Import Data Presensi"
-                    >
-                      <FileSpreadsheet className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Bulk Import</span>
-                    </button>
+                    {canEdit && (
+                      <>
+                        <button
+                          onClick={() => setIsBulkPresensiModalOpen(true)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center space-x-1"
+                          title="Bulk Import Data Presensi"
+                        >
+                          <FileSpreadsheet className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Bulk Import</span>
+                        </button>
 
-                    <button
-                      onClick={() => setIsAddPresensiModalOpen(true)}
-                      className="bg-[#F27D26] hover:bg-orange-600 text-white px-3.5 py-1.5 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center space-x-1.5"
-                    >
-                      <UserPlus className="w-3.5 h-3.5" />
-                      <span>+ Input Presensi</span>
-                    </button>
+                        <button
+                          onClick={() => setIsAddPresensiModalOpen(true)}
+                          className="bg-[#F27D26] hover:bg-orange-600 text-white px-3.5 py-1.5 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center space-x-1.5"
+                        >
+                          <UserPlus className="w-3.5 h-3.5" />
+                          <span>+ Input Presensi</span>
+                        </button>
 
-                    <button
-                      onClick={() =>
-                        setDeleteTarget({
-                          type: 'event',
-                          id: activeEvent.id,
-                          nama: activeEvent.namaEvent,
-                        })
-                      }
-                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded-lg transition-colors"
-                      title="Hapus Event Ini"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                        <button
+                          onClick={() =>
+                            setDeleteTarget({
+                              type: 'event',
+                              id: activeEvent.id,
+                              nama: activeEvent.namaEvent,
+                            })
+                          }
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded-lg transition-colors"
+                          title="Hapus Event Ini"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -701,19 +709,23 @@ export const EventManagement: React.FC<EventManagementProps> = ({
                                 )}
                               </td>
                               <td className="py-2.5 px-3 text-center">
-                                <button
-                                  onClick={() =>
-                                    setDeleteTarget({
-                                      type: 'attendance',
-                                      id: att.id,
-                                      nama: att.namaPeserta,
-                                    })
-                                  }
-                                  className="p-1 text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded"
-                                  title="Hapus Presensi Peserta Ini"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                {canEdit ? (
+                                  <button
+                                    onClick={() =>
+                                      setDeleteTarget({
+                                        type: 'attendance',
+                                        id: att.id,
+                                        nama: att.namaPeserta,
+                                      })
+                                    }
+                                    className="p-1 text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded"
+                                    title="Hapus Presensi Peserta Ini"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                ) : (
+                                  <span className="text-slate-300">-</span>
+                                )}
                               </td>
                             </tr>
                           );

@@ -61,7 +61,7 @@ export interface EventAttendance {
   waktuPresensi: string; // ISO string
 }
 
-export type AdminRole = 'superadmin' | 'admin';
+export type AdminRole = 'superadmin' | 'admin' | 'viewer';
 
 export interface AdminUser {
   id: string;

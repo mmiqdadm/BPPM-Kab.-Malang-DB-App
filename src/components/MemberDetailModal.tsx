@@ -29,6 +29,7 @@ interface MemberDetailModalProps {
   attendances?: EventAttendance[];
   onClose: () => void;
   onEdit: (m: Member) => void;
+  canEdit?: boolean;
 }
 
 export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
@@ -37,6 +38,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
   attendances = [],
   onClose,
   onEdit,
+  canEdit = true,
 }) => {
   const [showAllEvents, setShowAllEvents] = useState(false);
 
@@ -92,16 +94,18 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
               <Printer className="w-3.5 h-3.5 text-[#F27D26]" />
               <span className="hidden sm:inline">Cetak PDF</span>
             </button>
-            <button
-              onClick={() => {
-                onClose();
-                onEdit(member);
-              }}
-              className="px-3 py-1.5 bg-[#F27D26] hover:bg-orange-600 text-white text-xs font-bold rounded-lg transition-colors flex items-center space-x-1"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-              <span>Edit</span>
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onEdit(member);
+                }}
+                className="px-3 py-1.5 bg-[#F27D26] hover:bg-orange-600 text-white text-xs font-bold rounded-lg transition-colors flex items-center space-x-1"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span>Edit</span>
+              </button>
+            )}
             <button
               onClick={onClose}
               className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-colors"

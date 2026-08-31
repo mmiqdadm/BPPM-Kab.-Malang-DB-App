@@ -10,6 +10,82 @@ interface BulkImportModalProps {
   existingMembers?: Member[];
 }
 
+// Robust CSV/TSV single-line parser respecting quotes
+function parseDelimitedLine(line: string, delimiter: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === delimiter && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+// Auto detect delimiter
+function detectDelimiter(text: string): string {
+  const firstLine = text.split('\n')[0] || '';
+  if (firstLine.includes('\t')) return '\t';
+  if (firstLine.includes(';') && !firstLine.includes(',')) return ';';
+  return ',';
+}
+
+// Build dynamic column index mapping from detected headers
+function buildHeaderColumnMap(headers: string[]): Record<string, number> {
+  const map: Record<string, number> = {};
+  headers.forEach((h, idx) => {
+    const clean = String(h || '').toLowerCase().trim();
+    if (clean.includes('nama pembina') || clean.includes('nama_pembina') || clean.includes('pembina')) {
+      map['pembina'] = idx;
+    } else if (clean.includes('jenjang')) {
+      map['jenjang'] = idx;
+    } else if (clean === 'nama' || clean.includes('nama lengkap') || clean.includes('nama_lengkap') || (clean.includes('nama') && !clean.includes('pembina'))) {
+      map['nama'] = idx;
+    } else if (clean.includes('hp') || clean.includes('telp') || clean.includes('wa') || clean.includes('telepon') || clean.includes('handphone')) {
+      map['hp'] = idx;
+    } else if (clean.includes('organisasi') || clean.includes('sayap') || clean.includes('org')) {
+      map['org'] = idx;
+    } else if (clean.includes('lahir') || clean.includes('tgl') || clean.includes('birth')) {
+      map['tgl'] = idx;
+    } else if (clean.includes('email') || clean.includes('surel')) {
+      map['email'] = idx;
+    } else if (clean.includes('domisili') || clean.includes('kecamatan') || clean.includes('wilayah') || clean.includes('kota')) {
+      map['dom'] = idx;
+    } else if (clean.includes('alamat')) {
+      map['alamat'] = idx;
+    } else if (clean.includes('aktivitas') || clean.includes('pekerjaan') || clean.includes('profesi') || clean.includes('kegiatan')) {
+      map['akt'] = idx;
+    } else if (clean.includes('pendidikan') || clean.includes('edu')) {
+      map['edu'] = idx;
+    } else if (clean.includes('jurusan') || clean.includes('prodi')) {
+      map['jur'] = idx;
+    } else if (clean.includes('keahlian') || clean.includes('skill')) {
+      map['skill'] = idx;
+    } else if (clean.includes('hobi') || clean.includes('minat')) {
+      map['hobi'] = idx;
+    } else if (clean.includes('pembinaan') || clean.includes('status pembinaan')) {
+      map['pem'] = idx;
+    } else if (clean.includes('catatan') || clean.includes('keterangan') || clean.includes('note')) {
+      map['catatan'] = idx;
+    }
+  });
+  return map;
+}
+
 export const BulkImportModal: React.FC<BulkImportModalProps> = ({
   isOpen,
   onClose,
@@ -25,6 +101,32 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
   // Duplicate name confirmation step
   const [isReviewingDuplicates, setIsReviewingDuplicates] = useState(false);
   const [duplicateActions, setDuplicateActions] = useState<Record<number, 'add_new' | 'skip'>>({});
+
+  // Check duplicate items against existing database (Hook must always run before early return!)
+  const duplicateIndexes = useMemo(() => {
+    const map = new Map<number, Member>();
+    parsedItems.forEach((item, idx) => {
+      const matched = (existingMembers || []).find(
+        m => m && m.nama && item && item.nama && m.nama.toLowerCase().trim() === item.nama.toLowerCase().trim()
+      );
+      if (matched) {
+        map.set(idx, matched);
+      }
+    });
+    return map;
+  }, [parsedItems, existingMembers]);
+
+  // Reset internal states on open
+  React.useEffect(() => {
+    if (isOpen) {
+      setPastedText('');
+      setParsedItems([]);
+      setParseErrors([]);
+      setIsProcessing(false);
+      setIsReviewingDuplicates(false);
+      setDuplicateActions({});
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -52,7 +154,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
     const sampleRow1 = [
       'Budi Santoso',
       '081234567890',
-      'PKS Muda, GK',
+      '"PKS Muda, GK"',
       '2002-08-17',
       'budi.santoso@gmail.com',
       'Kepanjen',
@@ -60,8 +162,8 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
       'Mahasiswa UB',
       'S1',
       'Informatika',
-      'Web Development; Design Grafis',
-      'Futsal; Gowes',
+      '"Web Development; Design Grafis"',
+      '"Futsal; Gowes"',
       'Sudah',
       'Pratama',
       'Ust. Ahmad',
@@ -79,8 +181,8 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
       'Mahasiswi UM',
       'S1',
       'Pendidikan Inggris',
-      'Public Speaking; MC',
-      'Membaca; Writing',
+      '"Public Speaking; MC"',
+      '"Membaca; Writing"',
       'Belum Pernah',
       '',
       '',
@@ -100,12 +202,37 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
     document.body.removeChild(link);
   };
 
+  // Helper function to format date strings safely
+  const formatBirthDate = (rawDate: any): string => {
+    if (!rawDate) return '2002-01-01';
+    if (rawDate instanceof Date && !isNaN(rawDate.getTime())) {
+      return rawDate.toISOString().slice(0, 10);
+    }
+    const str = String(rawDate).trim();
+    if (!str) return '2002-01-01';
+
+    // Handle DD/MM/YYYY or DD-MM-YYYY
+    const dmyMatch = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+    if (dmyMatch) {
+      const day = dmyMatch[1].padStart(2, '0');
+      const month = dmyMatch[2].padStart(2, '0');
+      const year = dmyMatch[3];
+      return `${year}-${month}-${day}`;
+    }
+
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString().slice(0, 10);
+    }
+    return '2002-01-01';
+  };
+
   // Helper function to map raw row array/object into Member object
   const mapRowToMember = (
     nama: string,
     hp: string,
     orgStr: string,
-    tgl: string,
+    tgl: any,
     email: string,
     dom: string,
     alamat: string,
@@ -124,6 +251,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
 
     // Parse internal org checklist (delimited by comma, semicolon, or slash)
     const rawOrgs = (orgStr || '')
+      .replace(/["']/g, '')
       .split(/[,;/]+/)
       .map(o => o.trim())
       .filter(Boolean);
@@ -132,10 +260,11 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
     rawOrgs.forEach(o => {
       const upper = o.toUpperCase();
       if (upper.includes('BPPM')) validOrgs.push('BPPM');
-      else if (upper.includes('GK')) validOrgs.push('GK');
+      else if (upper.includes('GK') || upper.includes('GARUDA')) validOrgs.push('GK');
       else if (upper.includes('PKS') || upper.includes('MUDA')) validOrgs.push('PKS Muda');
       else if (upper.includes('GEMA')) validOrgs.push('Gema');
       else if (upper.includes('NGOPI')) validOrgs.push('Ngopi');
+      else if (upper.includes('BELUM')) validOrgs.push('Belum');
       else if (o) validOrgs.push(o as OrganisasiType);
     });
 
@@ -147,9 +276,9 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
     if (eduUpper.includes('TK')) cleanEdu = 'TK';
     else if (eduUpper.includes('SD')) cleanEdu = 'SD';
     else if (eduUpper.includes('SMP')) cleanEdu = 'SMP';
-    else if (eduUpper.includes('SMA') || eduUpper.includes('SMK')) cleanEdu = 'SMA';
-    else if (eduUpper.includes('DIPLOMA') || eduUpper.includes('D3')) cleanEdu = 'Diploma';
-    else if (eduUpper.includes('S2') || eduUpper.includes('MAGISTER')) cleanEdu = 'S2';
+    else if (eduUpper.includes('SMA') || eduUpper.includes('SMK') || eduUpper.includes('MA')) cleanEdu = 'SMA';
+    else if (eduUpper.includes('DIPLOMA') || eduUpper.includes('D3') || eduUpper.includes('D4') || eduUpper.includes('D1') || eduUpper.includes('D2')) cleanEdu = 'Diploma';
+    else if (eduUpper.includes('S2') || eduUpper.includes('MAGISTER') || eduUpper.includes('MASTER')) cleanEdu = 'S2';
     else if (eduUpper.includes('S3') || eduUpper.includes('DOKTOR')) cleanEdu = 'S3';
     else if (eduUpper.includes('LAIN')) cleanEdu = 'lain-lain';
 
@@ -157,7 +286,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
     let cleanPem: PembinaanType = 'Sudah';
     const pemUpper = (pem || '').toLowerCase();
     if (pemUpper.includes('belum')) cleanPem = 'Belum Pernah';
-    else if (pemUpper.includes('pernah') && pemUpper.includes('tidak')) cleanPem = 'Pernah, tapi sedang tidak';
+    else if (pemUpper.includes('pernah') && (pemUpper.includes('tidak') || pemUpper.includes('bukan') || pemUpper.includes('sedang'))) cleanPem = 'Pernah, tapi sedang tidak';
 
     let cleanJenjang: JenjangPembinaanType | undefined = undefined;
     let cleanPembina: string | undefined = undefined;
@@ -168,30 +297,25 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
       else if (jUpper.includes('MADYA')) cleanJenjang = 'Madya';
       else cleanJenjang = 'Muda';
 
-      if (pembinaStr && pembinaStr.trim()) {
+      if (pembinaStr && pembinaStr.trim() && pembinaStr.trim() !== '-') {
         cleanPembina = pembinaStr.trim();
       }
     }
 
     // Parse skills & hobbies
     const skillsList = (skillStr || '')
+      .replace(/["']/g, '')
       .split(/[,;/]+/)
       .map(s => s.trim())
       .filter(Boolean);
 
     const hobbiesList = (hobiStr || '')
+      .replace(/["']/g, '')
       .split(/[,;/]+/)
       .map(h => h.trim())
       .filter(Boolean);
 
-    // Date formatting (YYYY-MM-DD)
-    let cleanDate = '2002-01-01';
-    if (tgl) {
-      const parsedD = new Date(tgl);
-      if (!isNaN(parsedD.getTime())) {
-        cleanDate = parsedD.toISOString().slice(0, 10);
-      }
-    }
+    const cleanDate = formatBirthDate(tgl);
 
     return {
       nama: cleanNama,
@@ -216,42 +340,88 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
   };
 
   // Parse Text Input (CSV or Tab-separated format)
-  const parsePastedText = () => {
+  const parsePastedText = (): Omit<Member, 'id' | 'createdAt' | 'updatedAt'>[] => {
     setParseErrors([]);
     if (!pastedText.trim()) {
       setParseErrors(['Teks import masih kosong. Tempelkan baris data terlebih dahulu.']);
-      return;
+      return [];
     }
 
-    const lines = pastedText.trim().split('\n');
+    const lines = pastedText.trim().split('\n').filter(l => l.trim().length > 0);
+    if (lines.length === 0) return [];
+
+    const delimiter = detectDelimiter(pastedText);
     const results: Omit<Member, 'id' | 'createdAt' | 'updatedAt'>[] = [];
     const errors: string[] = [];
 
-    lines.forEach((line, index) => {
-      if (!line.trim()) return;
+    // Check first line for headers
+    const firstLineCols = parseDelimitedLine(lines[0], delimiter);
+    const isHeaderRow = firstLineCols.some(c => {
+      const lower = c.toLowerCase();
+      return lower.includes('nama') || lower.includes('telepon') || lower.includes('email') || lower.includes('domisili');
+    });
 
-      // Split by tab or comma
-      const cols = line.includes('\t') ? line.split('\t') : line.split(',');
+    const headerMap = isHeaderRow ? buildHeaderColumnMap(firstLineCols) : {};
+    const startIndex = isHeaderRow ? 1 : 0;
 
-      // If line is header, skip
-      if (index === 0 && cols[0].toLowerCase().includes('nama')) return;
+    for (let i = startIndex; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.trim()) continue;
 
-      const [nama, hp, org, tgl, email, dom, alamat, akt, edu, jur, skills, hobi, pem, jenjangOrCatatan, pembinaOrCatatan, catatanExtra] = cols;
+      const cols = parseDelimitedLine(line, delimiter);
+      if (cols.length === 0 || !cols.some(c => c.length > 0)) continue;
 
-      // Support dynamic order if template has Jenjang & Pembina or old template
+      let nama = '';
+      let hp = '';
+      let org = '';
+      let tgl: any = '';
+      let email = '';
+      let dom = '';
+      let alamat = '';
+      let akt = '';
+      let edu = '';
+      let jur = '';
+      let skills = '';
+      let hobi = '';
+      let pem = '';
       let jenjang = '';
       let pembina = '';
       let catatan = '';
 
-      if (catatanExtra !== undefined) {
-        jenjang = jenjangOrCatatan;
-        pembina = pembinaOrCatatan;
-        catatan = catatanExtra;
-      } else if (pembinaOrCatatan !== undefined) {
-        jenjang = jenjangOrCatatan;
-        catatan = pembinaOrCatatan;
+      if (isHeaderRow && Object.keys(headerMap).length > 0) {
+        nama = headerMap['nama'] !== undefined ? cols[headerMap['nama']] : cols[0] || '';
+        hp = headerMap['hp'] !== undefined ? cols[headerMap['hp']] : cols[1] || '';
+        org = headerMap['org'] !== undefined ? cols[headerMap['org']] : cols[2] || '';
+        tgl = headerMap['tgl'] !== undefined ? cols[headerMap['tgl']] : cols[3] || '';
+        email = headerMap['email'] !== undefined ? cols[headerMap['email']] : cols[4] || '';
+        dom = headerMap['dom'] !== undefined ? cols[headerMap['dom']] : cols[5] || '';
+        alamat = headerMap['alamat'] !== undefined ? cols[headerMap['alamat']] : cols[6] || '';
+        akt = headerMap['akt'] !== undefined ? cols[headerMap['akt']] : cols[7] || '';
+        edu = headerMap['edu'] !== undefined ? cols[headerMap['edu']] : cols[8] || '';
+        jur = headerMap['jur'] !== undefined ? cols[headerMap['jur']] : cols[9] || '';
+        skills = headerMap['skill'] !== undefined ? cols[headerMap['skill']] : cols[10] || '';
+        hobi = headerMap['hobi'] !== undefined ? cols[headerMap['hobi']] : cols[11] || '';
+        pem = headerMap['pem'] !== undefined ? cols[headerMap['pem']] : cols[12] || '';
+        jenjang = headerMap['jenjang'] !== undefined ? cols[headerMap['jenjang']] : '';
+        pembina = headerMap['pembina'] !== undefined ? cols[headerMap['pembina']] : '';
+        catatan = headerMap['catatan'] !== undefined ? cols[headerMap['catatan']] : '';
       } else {
-        catatan = jenjangOrCatatan || '';
+        // Positional parsing
+        [nama, hp, org, tgl, email, dom, alamat, akt, edu, jur, skills, hobi, pem] = cols;
+        const col13 = cols[13] || '';
+        const col14 = cols[14] || '';
+        const col15 = cols[15] || '';
+
+        if (cols.length >= 16) {
+          jenjang = col13;
+          pembina = col14;
+          catatan = col15;
+        } else if (cols.length === 15) {
+          jenjang = col13;
+          pembina = col14;
+        } else {
+          catatan = col13;
+        }
       }
 
       const mapped = mapRowToMember(
@@ -276,12 +446,13 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
       if (mapped) {
         results.push(mapped);
       } else {
-        errors.push(`Baris ${index + 1}: Nama tidak terdeteksi.`);
+        errors.push(`Baris ${i + 1}: Nama anggota tidak terdeteksi.`);
       }
-    });
+    }
 
     setParsedItems(results);
     setParseErrors(errors);
+    return results;
   };
 
   // Parse Excel / CSV File Upload
@@ -295,55 +466,103 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
     const reader = new FileReader();
     reader.onload = evt => {
       try {
-        const bstr = evt.target?.result;
-        const workbook = XLSX.read(bstr, { type: 'binary' });
+        const buffer = evt.target?.result as ArrayBuffer;
+        const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
         const wsname = workbook.SheetNames[0];
         const ws = workbook.Sheets[wsname];
-        const rawData: any[] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        const rawData: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
+
+        if (!rawData || rawData.length === 0) {
+          setParseErrors(['File Excel/CSV kosong.']);
+          setIsProcessing(false);
+          return;
+        }
 
         const results: Omit<Member, 'id' | 'createdAt' | 'updatedAt'>[] = [];
         const errors: string[] = [];
 
-        rawData.forEach((row, index) => {
-          if (!row || row.length === 0) return;
+        // Check header row
+        const firstRow = rawData[0] || [];
+        const firstRowStr = firstRow.map(c => String(c || '').toLowerCase().trim());
+        const isHeaderRow = firstRowStr.some(c => c.includes('nama') || c.includes('hp') || c.includes('domisili') || c.includes('telepon') || c === 'no');
 
-          // Header check
-          const firstCol = String(row[0] || '').toLowerCase();
-          if (index === 0 && (firstCol.includes('nama') || firstCol === 'no')) return;
+        const headerMap = isHeaderRow ? buildHeaderColumnMap(firstRowStr) : {};
+        const startIndex = isHeaderRow ? 1 : 0;
 
-          // Check column positioning
-          const offset = firstCol.match(/^\d+$/) ? 1 : 0; // If first col is number 'No'
+        for (let i = startIndex; i < rawData.length; i++) {
+          const row = rawData[i];
+          if (!row || row.length === 0) continue;
 
-          const nama = String(row[offset] || '');
-          const hp = String(row[offset + 1] || '');
-          const org = String(row[offset + 2] || '');
-          const tgl = String(row[offset + 3] || '');
-          const email = String(row[offset + 4] || '');
-          const dom = String(row[offset + 5] || '');
-          const alamat = String(row[offset + 6] || '');
-          const akt = String(row[offset + 7] || '');
-          const edu = String(row[offset + 8] || '');
-          const jur = String(row[offset + 9] || '');
-          const skills = String(row[offset + 10] || '');
-          const hobi = String(row[offset + 11] || '');
-          const pem = String(row[offset + 12] || '');
-          const col13 = String(row[offset + 13] || '');
-          const col14 = String(row[offset + 14] || '');
-          const col15 = String(row[offset + 15] || '');
+          // Check if row has at least 1 non-empty cell
+          const hasData = row.some(cell => cell !== undefined && cell !== null && String(cell).trim() !== '');
+          if (!hasData) continue;
 
+          // Detect if column 0 is a number (No index)
+          const firstCol = String(row[0] || '').trim();
+          const offset = !isHeaderRow && firstCol.match(/^\d+$/) ? 1 : 0;
+
+          let nama = '';
+          let hp = '';
+          let org = '';
+          let tgl: any = '';
+          let email = '';
+          let dom = '';
+          let alamat = '';
+          let akt = '';
+          let edu = '';
+          let jur = '';
+          let skills = '';
+          let hobi = '';
+          let pem = '';
           let jenjang = '';
           let pembina = '';
           let catatan = '';
 
-          if (row[offset + 15] !== undefined) {
-            jenjang = col13;
-            pembina = col14;
-            catatan = col15;
-          } else if (row[offset + 14] !== undefined) {
-            jenjang = col13;
-            catatan = col14;
+          if (isHeaderRow && Object.keys(headerMap).length > 0) {
+            nama = headerMap['nama'] !== undefined ? String(row[headerMap['nama']] || '') : String(row[0] || '');
+            hp = headerMap['hp'] !== undefined ? String(row[headerMap['hp']] || '') : String(row[1] || '');
+            org = headerMap['org'] !== undefined ? String(row[headerMap['org']] || '') : String(row[2] || '');
+            tgl = headerMap['tgl'] !== undefined ? row[headerMap['tgl']] : row[3];
+            email = headerMap['email'] !== undefined ? String(row[headerMap['email']] || '') : String(row[4] || '');
+            dom = headerMap['dom'] !== undefined ? String(row[headerMap['dom']] || '') : String(row[5] || '');
+            alamat = headerMap['alamat'] !== undefined ? String(row[headerMap['alamat']] || '') : String(row[6] || '');
+            akt = headerMap['akt'] !== undefined ? String(row[headerMap['akt']] || '') : String(row[7] || '');
+            edu = headerMap['edu'] !== undefined ? String(row[headerMap['edu']] || '') : String(row[8] || '');
+            jur = headerMap['jur'] !== undefined ? String(row[headerMap['jur']] || '') : String(row[9] || '');
+            skills = headerMap['skill'] !== undefined ? String(row[headerMap['skill']] || '') : String(row[10] || '');
+            hobi = headerMap['hobi'] !== undefined ? String(row[headerMap['hobi']] || '') : String(row[11] || '');
+            pem = headerMap['pem'] !== undefined ? String(row[headerMap['pem']] || '') : String(row[12] || '');
+            jenjang = headerMap['jenjang'] !== undefined ? String(row[headerMap['jenjang']] || '') : '';
+            pembina = headerMap['pembina'] !== undefined ? String(row[headerMap['pembina']] || '') : '';
+            catatan = headerMap['catatan'] !== undefined ? String(row[headerMap['catatan']] || '') : '';
           } else {
-            catatan = col13;
+            nama = String(row[offset] || '');
+            hp = String(row[offset + 1] || '');
+            org = String(row[offset + 2] || '');
+            tgl = row[offset + 3];
+            email = String(row[offset + 4] || '');
+            dom = String(row[offset + 5] || '');
+            alamat = String(row[offset + 6] || '');
+            akt = String(row[offset + 7] || '');
+            edu = String(row[offset + 8] || '');
+            jur = String(row[offset + 9] || '');
+            skills = String(row[offset + 10] || '');
+            hobi = String(row[offset + 11] || '');
+            pem = String(row[offset + 12] || '');
+            const col13 = String(row[offset + 13] || '');
+            const col14 = String(row[offset + 14] || '');
+            const col15 = String(row[offset + 15] || '');
+
+            if (row[offset + 15] !== undefined) {
+              jenjang = col13;
+              pembina = col14;
+              catatan = col15;
+            } else if (row[offset + 14] !== undefined) {
+              jenjang = col13;
+              catatan = col14;
+            } else {
+              catatan = col13;
+            }
           }
 
           const mapped = mapRowToMember(
@@ -367,43 +586,41 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
 
           if (mapped) {
             results.push(mapped);
-          } else {
-            errors.push(`Baris ${index + 1}: Nama tidak valid.`);
+          } else if (nama.trim()) {
+            errors.push(`Baris ${i + 1}: Data nama "${nama}" tidak lengkap/valid.`);
           }
-        });
+        }
 
         setParsedItems(results);
         setParseErrors(errors);
-      } catch (err) {
-        console.error(err);
-        setParseErrors(['Gagal membaca file Excel/CSV. Pastikan format file sesuai.']);
+      } catch (err: any) {
+        console.error('Error reading Excel/CSV file:', err);
+        setParseErrors([`Gagal membaca file: ${err?.message || 'Pastikan format file .xlsx atau .csv valid.'}`]);
       } finally {
         setIsProcessing(false);
       }
     };
-    reader.readAsBinaryString(file);
+
+    reader.onerror = () => {
+      setParseErrors(['Gagal membuka file dari perangkat.']);
+      setIsProcessing(false);
+    };
+
+    reader.readAsArrayBuffer(file);
   };
 
-  // Check duplicate items against existing database
-  const duplicateIndexes = useMemo(() => {
-    const map = new Map<number, Member>();
-    parsedItems.forEach((item, idx) => {
-      const matched = existingMembers.find(
-        m => m.nama.toLowerCase().trim() === item.nama.toLowerCase().trim()
-      );
-      if (matched) {
-        map.set(idx, matched);
-      }
-    });
-    return map;
-  }, [parsedItems, existingMembers]);
-
   const handleConfirmImport = () => {
-    if (parsedItems.length === 0) return;
+    let itemsToProcess = parsedItems;
+
+    // If on text tab and no items parsed yet, auto-parse first
+    if (activeTab === 'text' && itemsToProcess.length === 0 && pastedText.trim()) {
+      itemsToProcess = parsePastedText();
+    }
+
+    if (itemsToProcess.length === 0) return;
 
     // If duplicates exist and haven't been reviewed yet, enter review step
     if (duplicateIndexes.size > 0 && !isReviewingDuplicates) {
-      // Initialize actions: default to 'add_new' for all
       const initialActions: Record<number, 'add_new' | 'skip'> = {};
       duplicateIndexes.forEach((_, idx) => {
         initialActions[idx] = 'add_new';
@@ -414,7 +631,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
     }
 
     // Process final list
-    const finalItems = parsedItems.filter((_, idx) => {
+    const finalItems = itemsToProcess.filter((_, idx) => {
       if (duplicateIndexes.has(idx)) {
         return duplicateActions[idx] !== 'skip';
       }
