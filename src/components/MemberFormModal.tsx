@@ -47,7 +47,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
   const [namaPanggilan, setNamaPanggilan] = useState('');
   const [isAnakKader, setIsAnakKader] = useState(false);
   const [nomorHp, setNomorHp] = useState('');
-  const [organisasiInternal, setOrganisasiInternal] = useState<OrganisasiType[]>([]);
+  const [organisasiInternal, setOrganisasiInternal] = useState<OrganisasiType[]>(['Belum']);
   const [tglLahir, setTglLahir] = useState('');
   const [instagram, setInstagram] = useState('');
   const [tiktok, setTiktok] = useState('');
@@ -89,7 +89,11 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       setNamaPanggilan(initialMember.namaPanggilan || '');
       setIsAnakKader(!!initialMember.isAnakKader);
       setNomorHp(initialMember.nomorHp || '');
-      setOrganisasiInternal(initialMember.organisasiInternal || ['PKS Muda']);
+      setOrganisasiInternal(
+        initialMember.organisasiInternal && initialMember.organisasiInternal.length > 0
+          ? initialMember.organisasiInternal
+          : ['Belum']
+      );
       setTglLahir(initialMember.tglLahir || '2002-01-01');
       setInstagram(initialMember.sosmed?.instagram || '');
       setTiktok(initialMember.sosmed?.tiktok || '');
@@ -113,7 +117,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       setNamaPanggilan('');
       setIsAnakKader(false);
       setNomorHp('');
-      setOrganisasiInternal(['PKS Muda']);
+      setOrganisasiInternal(['Belum']);
       setTglLahir('2002-01-01');
       setInstagram('');
       setTiktok('');
@@ -189,10 +193,22 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
 
   // Toggle internal org checklist
   const handleOrgToggle = (org: OrganisasiType) => {
+    if (org === 'Belum') {
+      if (organisasiInternal.includes('Belum')) {
+        setOrganisasiInternal([]);
+      } else {
+        setOrganisasiInternal(['Belum']);
+      }
+      return;
+    }
+
     if (organisasiInternal.includes(org)) {
-      setOrganisasiInternal(organisasiInternal.filter(o => o !== org));
+      const remaining = organisasiInternal.filter(o => o !== org);
+      setOrganisasiInternal(remaining.length === 0 ? ['Belum'] : remaining);
     } else {
-      setOrganisasiInternal([...organisasiInternal, org]);
+      // Remove 'Belum' if a specific org is chosen
+      const withoutBelum = organisasiInternal.filter(o => o !== 'Belum');
+      setOrganisasiInternal([...withoutBelum, org]);
     }
   };
 
@@ -248,7 +264,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       namaPanggilan: namaPanggilan.trim() || undefined,
       isAnakKader,
       nomorHp: nomorHp.trim(),
-      organisasiInternal,
+      organisasiInternal: organisasiInternal.length > 0 ? organisasiInternal : ['Belum'],
       tglLahir,
       sosmed: {
         instagram: instagram.trim(),

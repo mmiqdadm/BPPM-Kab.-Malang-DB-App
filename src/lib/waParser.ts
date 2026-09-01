@@ -218,7 +218,7 @@ export function parseWhatsAppFormText(text: string): ParsedWAMember {
       namaPanggilan: '',
       isAnakKader: false,
       nomorHp: '',
-      organisasiInternal: ['PKS Muda'],
+      organisasiInternal: ['Belum'],
       tglLahir: '2002-01-01',
       sosmed: {},
       email: '',
@@ -369,7 +369,7 @@ export function parseWhatsAppFormText(text: string): ParsedWAMember {
   const namaPembina = cleanValue(rawPembina) || undefined;
 
   // Organisasi internal default
-  let organisasiInternal = ['PKS Muda'];
+  let organisasiInternal = ['Belum'];
   if (rawOrganisasi) {
     const orgItems = parseListItems(rawOrganisasi);
     if (orgItems.length > 0) {

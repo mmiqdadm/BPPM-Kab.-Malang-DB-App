@@ -348,7 +348,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
       else if (o) validOrgs.push(o as OrganisasiType);
     });
 
-    if (validOrgs.length === 0) validOrgs.push('PKS Muda');
+    if (validOrgs.length === 0) validOrgs.push('Belum');
 
     // Parse education
     const cleanEdu: PendidikanType = parsePendidikanLevel(edu);
