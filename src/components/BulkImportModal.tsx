@@ -1,13 +1,36 @@
 import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { Member, OrganisasiType, PendidikanType, PembinaanType, JenjangPembinaanType } from '../types';
-import { X, Upload, FileText, CheckCircle2, AlertCircle, Download, Sparkles, ArrowRight } from 'lucide-react';
+import { WA_FORM_TEMPLATE, parseWhatsAppFormText, parsePendidikanLevel, ParsedWAMember } from '../lib/waParser';
+import { calculateAge, getDapilByKecamatan } from '../lib/utils';
+import {
+  X,
+  Upload,
+  FileText,
+  CheckCircle2,
+  AlertCircle,
+  Download,
+  Sparkles,
+  ArrowRight,
+  Copy,
+  Check,
+  MessageSquare,
+  User,
+  Phone,
+  MapPin,
+  GraduationCap,
+  Briefcase,
+  Award,
+  Heart,
+  ExternalLink,
+} from 'lucide-react';
 
 interface BulkImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImportConfirm: (membersToImport: Omit<Member, 'id' | 'createdAt' | 'updatedAt'>[]) => void;
   existingMembers?: Member[];
+  onOpenInForm?: (memberData: Omit<Member, 'id' | 'createdAt' | 'updatedAt'>) => void;
 }
 
 // Robust CSV/TSV single-line parser respecting quotes
@@ -91,14 +114,40 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
   onClose,
   onImportConfirm,
   existingMembers = [],
+  onOpenInForm,
 }) => {
-  const [activeTab, setActiveTab] = useState<'text' | 'file'>('text');
+  const [activeTab, setActiveTab] = useState<'wa' | 'text' | 'file'>('wa');
+  const [waPastedText, setWaPastedText] = useState('');
+  const [copiedTemplate, setCopiedTemplate] = useState(false);
+
   const [pastedText, setPastedText] = useState('');
   const [parsedItems, setParsedItems] = useState<Omit<Member, 'id' | 'createdAt' | 'updatedAt'>[]>([]);
   const [parseErrors, setParseErrors] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Duplicate name confirmation step
+  // Live parse WhatsApp response text
+  const parsedWAMember: ParsedWAMember = useMemo(() => {
+    return parseWhatsAppFormText(waPastedText);
+  }, [waPastedText]);
+
+  // Check if parsed WA member has duplicate in existing database
+  const isWADuplicate = useMemo(() => {
+    if (!parsedWAMember.nama && !parsedWAMember.nomorHp) return false;
+    const cleanName = parsedWAMember.nama.toLowerCase().trim();
+    const cleanHp = parsedWAMember.nomorHp.replace(/\D/g, '');
+
+    return (existingMembers || []).some(m => {
+      const mName = (m.nama || '').toLowerCase().trim();
+      const mHp = (m.nomorHp || '').replace(/\D/g, '');
+      if (cleanName && mName === cleanName) return true;
+      if (cleanHp.length >= 8 && mHp.length >= 8 && (cleanHp === mHp || cleanHp.slice(-8) === mHp.slice(-8))) {
+        return true;
+      }
+      return false;
+    });
+  }, [parsedWAMember, existingMembers]);
+
+  // Duplicate name confirmation step for bulk items
   const [isReviewingDuplicates, setIsReviewingDuplicates] = useState(false);
   const [duplicateActions, setDuplicateActions] = useState<Record<number, 'add_new' | 'skip'>>({});
 
@@ -119,6 +168,8 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
   // Reset internal states on open
   React.useEffect(() => {
     if (isOpen) {
+      setWaPastedText('');
+      setCopiedTemplate(false);
       setPastedText('');
       setParsedItems([]);
       setParseErrors([]);
@@ -127,6 +178,35 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
       setDuplicateActions({});
     }
   }, [isOpen]);
+
+  const handleCopyTemplate = () => {
+    navigator.clipboard.writeText(WA_FORM_TEMPLATE);
+    setCopiedTemplate(true);
+    setTimeout(() => {
+      setCopiedTemplate(false);
+    }, 2500);
+  };
+
+  const handleOpenWAInForm = () => {
+    if (!parsedWAMember.nama.trim()) {
+      setParseErrors(['Nama Lengkap tidak terdeteksi dari teks WA. Pastikan format mengandung "Nama Lengkap : "']);
+      return;
+    }
+    if (onOpenInForm) {
+      onOpenInForm(parsedWAMember);
+      onClose();
+    }
+  };
+
+  const handleAddWAToBulkList = () => {
+    if (!parsedWAMember.nama.trim()) {
+      setParseErrors(['Nama Lengkap tidak terdeteksi dari teks WA.']);
+      return;
+    }
+    setParsedItems(prev => [...prev, parsedWAMember]);
+    setWaPastedText('');
+    setParseErrors([]);
+  };
 
   if (!isOpen) return null;
 
@@ -271,22 +351,14 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
     if (validOrgs.length === 0) validOrgs.push('PKS Muda');
 
     // Parse education
-    let cleanEdu: PendidikanType = 'S1';
-    const eduUpper = (edu || '').toUpperCase();
-    if (eduUpper.includes('TK')) cleanEdu = 'TK';
-    else if (eduUpper.includes('SD')) cleanEdu = 'SD';
-    else if (eduUpper.includes('SMP')) cleanEdu = 'SMP';
-    else if (eduUpper.includes('SMA') || eduUpper.includes('SMK') || eduUpper.includes('MA')) cleanEdu = 'SMA';
-    else if (eduUpper.includes('DIPLOMA') || eduUpper.includes('D3') || eduUpper.includes('D4') || eduUpper.includes('D1') || eduUpper.includes('D2')) cleanEdu = 'Diploma';
-    else if (eduUpper.includes('S2') || eduUpper.includes('MAGISTER') || eduUpper.includes('MASTER')) cleanEdu = 'S2';
-    else if (eduUpper.includes('S3') || eduUpper.includes('DOKTOR')) cleanEdu = 'S3';
-    else if (eduUpper.includes('LAIN')) cleanEdu = 'lain-lain';
+    const cleanEdu: PendidikanType = parsePendidikanLevel(edu);
 
-    // Parse Pembinaan
-    let cleanPem: PembinaanType = 'Sudah';
+    // Parse Pembinaan (Default: Belum Pernah)
+    let cleanPem: PembinaanType = 'Belum Pernah';
     const pemUpper = (pem || '').toLowerCase();
-    if (pemUpper.includes('belum')) cleanPem = 'Belum Pernah';
+    if (pemUpper.includes('sudah') || pemUpper.includes('aktif') || pemUpper.includes('ya')) cleanPem = 'Sudah';
     else if (pemUpper.includes('pernah') && (pemUpper.includes('tidak') || pemUpper.includes('bukan') || pemUpper.includes('sedang'))) cleanPem = 'Pernah, tapi sedang tidak';
+    else if (pemUpper.includes('belum')) cleanPem = 'Belum Pernah';
 
     let cleanJenjang: JenjangPembinaanType | undefined = undefined;
     let cleanPembina: string | undefined = undefined;
@@ -774,149 +846,390 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
             </div>
           ) : (
             <>
-              {/* Download Template Banner */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="text-xs space-y-0.5">
-              <span className="font-semibold text-slate-800 block">Belum punya format kolom data?</span>
-              <p className="text-slate-500 font-medium">Unduh template CSV agar susunan data rapi dan presisi.</p>
-            </div>
-            <button
-              onClick={downloadSampleCSV}
-              className="bg-white hover:bg-slate-100 text-amber-700 border border-amber-300 text-xs font-semibold px-3.5 py-2 rounded-xl transition-colors flex items-center space-x-1.5 flex-shrink-0"
-            >
-              <Download className="w-4 h-4" />
-              <span>Download Template CSV</span>
-            </button>
-          </div>
+              {/* Mode Tabs */}
+              <div className="flex items-center space-x-2 border-b border-slate-200 pb-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('wa')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 ${
+                    activeTab === 'wa'
+                      ? 'bg-[#F27D26] text-white shadow-sm'
+                      : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>Form WhatsApp (Japri)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('text')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 ${
+                    activeTab === 'text'
+                      ? 'bg-[#F27D26] text-white shadow-sm'
+                      : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Tempel CSV / Tab</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('file')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 ${
+                    activeTab === 'file'
+                      ? 'bg-[#F27D26] text-white shadow-sm'
+                      : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Upload File Excel / CSV</span>
+                </button>
+              </div>
 
-          {/* Mode Tabs */}
-          <div className="flex items-center space-x-2 border-b border-slate-200 pb-2">
-            <button
-              onClick={() => setActiveTab('text')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                activeTab === 'text'
-                  ? 'bg-[#F27D26] text-white'
-                  : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
-              }`}
-            >
-              Tempel Teks (CSV / Tab)
-            </button>
-            <button
-              onClick={() => setActiveTab('file')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                activeTab === 'file'
-                  ? 'bg-[#F27D26] text-white'
-                  : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
-              }`}
-            >
-              Upload File (Excel / CSV)
-            </button>
-          </div>
+              {/* Tab 1: WhatsApp Japri Form Text */}
+              {activeTab === 'wa' && (
+                <div className="space-y-4">
+                  {/* Template Copy Banner */}
+                  <div className="bg-gradient-to-r from-orange-50/90 via-amber-50/70 to-orange-50/90 border border-orange-200 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="text-xs space-y-0.5">
+                      <span className="font-bold text-slate-900 flex items-center space-x-1.5">
+                        <Sparkles className="w-4 h-4 text-[#F27D26]" />
+                        <span>Format Formulir Japri WhatsApp</span>
+                      </span>
+                      <p className="text-slate-600 font-medium text-[11px]">
+                        Kirimkan template pertanyaan ke calon anggota, lalu salin-tempel balasan mereka ke kotak di bawah.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCopyTemplate}
+                      className="bg-white hover:bg-orange-50 text-[#F27D26] border border-orange-300 text-xs font-bold px-3 py-1.5 rounded-xl transition-all flex items-center space-x-1.5 shrink-0 shadow-2xs"
+                    >
+                      {copiedTemplate ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700">Tersalin ke Clipboard!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Salin Format Teks WA</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
 
-          {/* Tab 1: Paste Text */}
-          {activeTab === 'text' && (
-            <div className="space-y-3">
-              <textarea
-                value={pastedText}
-                onChange={e => setPastedText(e.target.value)}
-                rows={6}
-                placeholder={`Tempelkan baris data di sini (pisahkan dengan koma atau tab):\n\nAhmad Fauzi, 081234567890, PKS Muda, 2001-05-14, fauzi@gmail.com, Kepanjen, Jl. Penarukan, Freelance, S1, Informatika, Design Grafis, Sepakbola, Sudah, Aktif dapil 1\nSiti Nurhaliza, 082198765432, BPPM, 2003-09-22, sitinur@gmail.com, Singosari, Jl. Tumapel, Mahasiswi, S1, Inggris, Public Speaking, Membaca, Sudah, Fasilitator`}
-                className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs font-mono rounded-xl p-3.5 outline-none focus:border-[#F27D26] focus:bg-white resize-none leading-relaxed font-medium"
-              />
-              <button
-                onClick={parsePastedText}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 transition-colors flex items-center space-x-1.5"
-              >
-                <span>Proses & Pratinjau Teks</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
+                  {/* Textarea Paste */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Tempel Teks Balasan WA Anggota di Sini:
+                    </label>
+                    <textarea
+                      value={waPastedText}
+                      onChange={e => {
+                        setWaPastedText(e.target.value);
+                        if (parseErrors.length > 0) setParseErrors([]);
+                      }}
+                      rows={7}
+                      placeholder={`Nama Lengkap : Ahmad Fauzi Pratama\nNama Panggilan : Fauzi\nNo. HP (WA) : 081234567890\nEmail : fauzi.pratama@gmail.com\nTgl Lahir : 14/05/2001\nAlamat lengkap : Jl. Penarukan No. 12, RT 02/03, Kepanjen, Malang\nPendidikan Terakhir/saat ini : S1\nJurusan : Informatika\nAktivitas Utama : Freelance Web Designer\nKeahlian : Desain Grafis, Web Development, Public Speaking\nHobi : Sepakbola, Membaca Buku\nInstagram : @fauzi_pratama\nTiktok : @fauzipro`}
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs font-mono rounded-xl p-3.5 outline-none focus:border-[#F27D26] focus:bg-white resize-none leading-relaxed font-medium"
+                    />
+                  </div>
 
-          {/* Tab 2: Upload File */}
-          {activeTab === 'file' && (
-            <div className="border-2 border-dashed border-slate-200 hover:border-[#F27D26] rounded-2xl p-8 text-center bg-slate-50/50 transition-colors">
-              <Upload className="w-8 h-8 text-[#F27D26] mx-auto mb-2" />
-              <p className="text-xs font-semibold text-slate-800 mb-1">
-                Pilih atau seret file `.xlsx` / `.csv` Anda ke sini
-              </p>
-              <p className="text-[11px] text-slate-500 font-medium mb-4">Mendukung format Microsoft Excel & CSV</p>
-              <input
-                type="file"
-                accept=".xlsx, .xls, .csv"
-                onChange={handleFileUpload}
-                className="hidden"
-                id="file-import-input"
-              />
-              <label
-                htmlFor="file-import-input"
-                className="cursor-pointer inline-flex items-center space-x-2 px-5 py-2.5 bg-[#F27D26] hover:bg-orange-600 text-white font-bold text-xs rounded-xl shadow-sm transition-all"
-              >
-                <span>{isProcessing ? 'Membaca File...' : 'Pilih File dari Perangkat'}</span>
-              </label>
-            </div>
-          )}
+                  {/* Live Parsed Preview */}
+                  {parsedWAMember.detectedFieldsCount > 0 && (
+                    <div className="space-y-3 p-4 bg-emerald-50/50 border border-emerald-200 rounded-xl animate-in fade-in duration-200">
+                      <div className="flex items-center justify-between border-b border-emerald-200/80 pb-2">
+                        <span className="text-xs font-bold text-emerald-800 flex items-center space-x-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          <span>Hasil Deteksi Cerdas ({parsedWAMember.detectedFieldsCount} Kolom Ditemukan)</span>
+                        </span>
+                        {isWADuplicate && (
+                          <span className="text-[10px] bg-amber-100 text-amber-800 border border-amber-300 font-bold px-2 py-0.5 rounded-full">
+                            ⚠️ Kemungkinan Duplikat
+                          </span>
+                        )}
+                      </div>
 
-          {/* Errors view */}
-          {parseErrors.length > 0 && (
-            <div className="bg-red-50 border border-red-200 p-3 rounded-xl text-red-700 text-xs space-y-1 font-medium">
-              {parseErrors.map((err, i) => (
-                <div key={i} className="flex items-center space-x-1.5">
-                  <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
-                  <span>{err}</span>
+                      {/* Member summary card */}
+                      <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-2.5 text-xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-bold text-slate-900 text-sm">
+                              {parsedWAMember.nama || '(Nama belum terisi)'}
+                            </span>
+                            {parsedWAMember.namaPanggilan && (
+                              <span className="bg-orange-50 text-[#F27D26] border border-orange-200 text-[10px] font-bold px-1.5 py-0.2 rounded">
+                                {parsedWAMember.namaPanggilan}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-500 font-medium">
+                            🎂 {parsedWAMember.tglLahir}{' '}
+                            {calculateAge(parsedWAMember.tglLahir) > 0 && (
+                              <span className="text-amber-600 font-semibold">
+                                ({calculateAge(parsedWAMember.tglLahir)} Tahun)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-600">
+                          <div className="flex items-center space-x-1.5">
+                            <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>HP/WA: <strong className="text-slate-800">{parsedWAMember.nomorHp || '-'}</strong></span>
+                          </div>
+                          {parsedWAMember.email && (
+                            <div className="flex items-center space-x-1.5">
+                              <Mail className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                              <span>Email: <strong className="text-slate-800">{parsedWAMember.email}</strong></span>
+                            </div>
+                          )}
+                          <div className="flex items-center space-x-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            <span>
+                              Domisili: <strong className="text-slate-800">Kec. {parsedWAMember.domisili}</strong>{' '}
+                              {getDapilByKecamatan(parsedWAMember.domisili) && (
+                                <span className="text-[9px] bg-blue-50 text-blue-700 px-1 rounded font-bold">
+                                  {getDapilByKecamatan(parsedWAMember.domisili)}
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-1.5">
+                            <GraduationCap className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                            <span>
+                              Pendidikan: <strong className="text-slate-800">{parsedWAMember.pendidikan}</strong>{' '}
+                              {parsedWAMember.jurusan ? `(${parsedWAMember.jurusan})` : ''}
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-1.5">
+                            <Briefcase className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                            <span>Aktivitas: <strong className="text-slate-800">{parsedWAMember.aktivitas || '-'}</strong></span>
+                          </div>
+                        </div>
+
+                        {parsedWAMember.alamatDetail && (
+                          <div className="text-[11px] text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                            <strong>Alamat Lengkap:</strong> {parsedWAMember.alamatDetail}
+                          </div>
+                        )}
+
+                        {/* Skills & Hobbies */}
+                        <div className="space-y-1 pt-1 border-t border-slate-100">
+                          {parsedWAMember.keahlian.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-1">
+                              <span className="text-[10px] font-bold text-slate-500 mr-1">Keahlian:</span>
+                              {parsedWAMember.keahlian.map((k, idx) => (
+                                <span
+                                  key={idx}
+                                  className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold px-2 py-0.2 rounded-md"
+                                >
+                                  {k}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {parsedWAMember.hobi.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-1">
+                              <span className="text-[10px] font-bold text-slate-500 mr-1">Hobi:</span>
+                              {parsedWAMember.hobi.map((h, idx) => (
+                                <span
+                                  key={idx}
+                                  className="bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-semibold px-2 py-0.2 rounded-md"
+                                >
+                                  {h}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {(parsedWAMember.sosmed.instagram || parsedWAMember.sosmed.tiktok) && (
+                            <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
+                              {parsedWAMember.sosmed.instagram && (
+                                <span className="text-purple-700 font-semibold">
+                                  📷 IG: {parsedWAMember.sosmed.instagram}
+                                </span>
+                              )}
+                              {parsedWAMember.sosmed.tiktok && (
+                                <span className="text-slate-800 font-semibold">
+                                  🎵 TikTok: {parsedWAMember.sosmed.tiktok}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Fast Action in WA tab */}
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={handleAddWAToBulkList}
+                          className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-semibold rounded-xl transition-all"
+                        >
+                          + Tambahkan ke Antrean Bulk
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleOpenWAInForm}
+                          className="px-5 py-2 bg-[#F27D26] hover:bg-orange-600 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center justify-center space-x-1.5"
+                        >
+                          <span>Buka di Form Input (Review & Simpan)</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
+              )}
 
-          {/* Preview Table */}
-          {parsedItems.length > 0 && (
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-emerald-700 flex items-center space-x-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Hasil Deteksi: {parsedItems.length} Data Siap Diimport</span>
-                </span>
-              </div>
+              {/* Tab 2: CSV / Tab Separated Text */}
+              {activeTab === 'text' && (
+                <div className="space-y-3">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="text-xs space-y-0.5">
+                      <span className="font-semibold text-slate-800 block">Belum punya format kolom data CSV?</span>
+                      <p className="text-slate-500 font-medium">Unduh template CSV agar susunan kolom rapi dan presisi.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={downloadSampleCSV}
+                      className="bg-white hover:bg-slate-100 text-amber-700 border border-amber-300 text-xs font-semibold px-3.5 py-2 rounded-xl transition-colors flex items-center space-x-1.5 shrink-0"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download Template CSV</span>
+                    </button>
+                  </div>
 
-              <div className="border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto bg-white">
-                <table className="w-full text-left text-[11px]">
-                  <thead className="bg-slate-50 text-slate-500 sticky top-0 font-bold border-b border-slate-200">
-                    <tr>
-                      <th className="p-2">No</th>
-                      <th className="p-2">Nama</th>
-                      <th className="p-2">Nomor HP</th>
-                      <th className="p-2">Organisasi</th>
-                      <th className="p-2">Domisili</th>
-                      <th className="p-2">Pembinaan</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
-                    {parsedItems.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/80">
-                        <td className="p-2 font-mono text-slate-400">{idx + 1}</td>
-                        <td className="p-2 font-semibold text-slate-900">{item.nama}</td>
-                        <td className="p-2">{item.nomorHp || '-'}</td>
-                        <td className="p-2 text-[#F27D26] font-bold">
-                          {(item.organisasiInternal || []).join(', ')}
-                        </td>
-                        <td className="p-2">{item.domisili}</td>
-                        <td className="p-2">{item.pembinaan}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                  <textarea
+                    value={pastedText}
+                    onChange={e => setPastedText(e.target.value)}
+                    rows={6}
+                    placeholder={`Tempelkan baris data CSV/Tab di sini:\n\nAhmad Fauzi, 081234567890, PKS Muda, 2001-05-14, fauzi@gmail.com, Kepanjen, Jl. Penarukan, Freelance, S1, Informatika, Design Grafis, Sepakbola, Sudah, Aktif dapil 1\nSiti Nurhaliza, 082198765432, BPPM, 2003-09-22, sitinur@gmail.com, Singosari, Jl. Tumapel, Mahasiswi, S1, Inggris, Public Speaking, Membaca, Sudah, Fasilitator`}
+                    className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs font-mono rounded-xl p-3.5 outline-none focus:border-[#F27D26] focus:bg-white resize-none leading-relaxed font-medium"
+                  />
+                  <button
+                    type="button"
+                    onClick={parsePastedText}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 transition-colors flex items-center space-x-1.5"
+                  >
+                    <span>Proses & Pratinjau Teks CSV</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Tab 3: Upload File Excel / CSV */}
+              {activeTab === 'file' && (
+                <div className="space-y-3">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="text-xs space-y-0.5">
+                      <span className="font-semibold text-slate-800 block">Template Excel / Spreadsheet</span>
+                      <p className="text-slate-500 font-medium">Unduh template CSV/Excel untuk mempermudah penyusunan data.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={downloadSampleCSV}
+                      className="bg-white hover:bg-slate-100 text-amber-700 border border-amber-300 text-xs font-semibold px-3.5 py-2 rounded-xl transition-colors flex items-center space-x-1.5 shrink-0"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download Template</span>
+                    </button>
+                  </div>
+
+                  <div className="border-2 border-dashed border-slate-200 hover:border-[#F27D26] rounded-2xl p-8 text-center bg-slate-50/50 transition-colors">
+                    <Upload className="w-8 h-8 text-[#F27D26] mx-auto mb-2" />
+                    <p className="text-xs font-semibold text-slate-800 mb-1">
+                      Pilih atau seret file `.xlsx` / `.csv` Anda ke sini
+                    </p>
+                    <p className="text-[11px] text-slate-500 font-medium mb-4">Mendukung format Microsoft Excel & CSV</p>
+                    <input
+                      type="file"
+                      accept=".xlsx, .xls, .csv"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      id="file-import-input"
+                    />
+                    <label
+                      htmlFor="file-import-input"
+                      className="cursor-pointer inline-flex items-center space-x-2 px-5 py-2.5 bg-[#F27D26] hover:bg-orange-600 text-white font-bold text-xs rounded-xl shadow-sm transition-all"
+                    >
+                      <span>{isProcessing ? 'Membaca File...' : 'Pilih File dari Perangkat'}</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* Errors view */}
+              {parseErrors.length > 0 && (
+                <div className="bg-red-50 border border-red-200 p-3 rounded-xl text-red-700 text-xs space-y-1 font-medium">
+                  {parseErrors.map((err, i) => (
+                    <div key={i} className="flex items-center space-x-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                      <span>{err}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Preview Table for Bulk Items */}
+              {parsedItems.length > 0 && (
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-700 flex items-center space-x-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>Hasil Deteksi: {parsedItems.length} Data Siap Diimport</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setParsedItems([])}
+                      className="text-[11px] text-slate-400 hover:text-red-500"
+                    >
+                      Kosongkan Daftar
+                    </button>
+                  </div>
+
+                  <div className="border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto bg-white">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="bg-slate-50 text-slate-500 sticky top-0 font-bold border-b border-slate-200">
+                        <tr>
+                          <th className="p-2">No</th>
+                          <th className="p-2">Nama</th>
+                          <th className="p-2">Nomor HP</th>
+                          <th className="p-2">Organisasi</th>
+                          <th className="p-2">Domisili</th>
+                          <th className="p-2">Pembinaan</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                        {parsedItems.map((item, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50/80">
+                            <td className="p-2 font-mono text-slate-400">{idx + 1}</td>
+                            <td className="p-2 font-semibold text-slate-900">{item.nama}</td>
+                            <td className="p-2">{item.nomorHp || '-'}</td>
+                            <td className="p-2 text-[#F27D26] font-bold">
+                              {(item.organisasiInternal || []).join(', ')}
+                            </td>
+                            <td className="p-2">{item.domisili}</td>
+                            <td className="p-2">{item.pembinaan}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </>
           )}
-        </>
-      )}
-    </div>
+        </div>
 
         {/* Footer */}
         <div className="p-5 border-t border-slate-200 bg-slate-50/80 rounded-b-2xl flex items-center justify-end space-x-3">
           {isReviewingDuplicates && (
             <button
+              type="button"
               onClick={() => setIsReviewingDuplicates(false)}
               className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors"
             >
@@ -924,22 +1237,36 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
             </button>
           )}
           <button
+            type="button"
             onClick={onClose}
             className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors"
           >
             Batal
           </button>
-          <button
-            disabled={parsedItems.length === 0}
-            onClick={handleConfirmImport}
-            className="px-6 py-2.5 bg-[#F27D26] hover:bg-orange-600 text-white text-xs font-bold rounded-xl shadow-sm transition-all disabled:opacity-40"
-          >
-            {isReviewingDuplicates
-              ? 'Selesaikan Import Sekarang'
-              : duplicateIndexes.size > 0
-              ? `Tinjau ${duplicateIndexes.size} Nama Duplikat & Lanjut`
-              : `Import ${parsedItems.length} Data Sekarang`}
-          </button>
+
+          {activeTab === 'wa' && parsedWAMember.nama.trim() && parsedItems.length === 0 ? (
+            <button
+              type="button"
+              onClick={handleOpenWAInForm}
+              className="px-6 py-2.5 bg-[#F27D26] hover:bg-orange-600 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center space-x-1.5"
+            >
+              <span>Buka di Form Input (Review & Simpan)</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={parsedItems.length === 0 && (activeTab !== 'text' || !pastedText.trim())}
+              onClick={handleConfirmImport}
+              className="px-6 py-2.5 bg-[#F27D26] hover:bg-orange-600 text-white text-xs font-bold rounded-xl shadow-sm transition-all disabled:opacity-40"
+            >
+              {isReviewingDuplicates
+                ? 'Selesaikan Import Sekarang'
+                : duplicateIndexes.size > 0
+                ? `Tinjau ${duplicateIndexes.size} Nama Duplikat & Lanjut`
+                : `Import ${parsedItems.length || 1} Data Sekarang`}
+            </button>
+          )}
         </div>
       </div>
     </div>

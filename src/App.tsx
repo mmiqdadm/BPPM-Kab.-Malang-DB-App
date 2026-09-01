@@ -44,7 +44,7 @@ export default function App() {
 
   // Modals state
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [editingMember, setEditingMember] = useState<Member | Partial<Member> | null>(null);
 
   const [viewingMember, setViewingMember] = useState<Member | null>(null);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
@@ -174,70 +174,88 @@ export default function App() {
     data: Omit<Member, 'id' | 'createdAt' | 'updatedAt'>,
     editId?: string
   ) => {
-    if (editId) {
-      updateMemberLocal(editId, data);
-      recordActivityLog({
-        adminName: currentAdmin?.name || 'Admin',
-        adminRole: currentAdmin?.role || 'admin',
-        adminId: currentAdmin?.id,
-        category: 'anggota',
-        actionType: 'update',
-        targetTitle: data.nama,
-        details: `Memperbarui data anggota "${data.nama}" (Domisili: Kec. ${data.domisili || '-'}, Pendidikan: ${data.pendidikan || '-'})`,
-      });
-      showToast('Data anggota berhasil diperbarui.');
-    } else {
-      addMemberLocal(data, currentAdmin?.name || 'Admin');
-      recordActivityLog({
-        adminName: currentAdmin?.name || 'Admin',
-        adminRole: currentAdmin?.role || 'admin',
-        adminId: currentAdmin?.id,
-        category: 'anggota',
-        actionType: 'create',
-        targetTitle: data.nama,
-        details: `Menambahkan anggota baru "${data.nama}" (Kec. ${data.domisili || '-'}, Sayap: ${(data.organisasiInternal || []).join(', ') || '-'})`,
-      });
-      showToast('Anggota baru berhasil ditambahkan.');
+    try {
+      if (editId) {
+        updateMemberLocal(editId, data);
+        recordActivityLog({
+          adminName: currentAdmin?.name || 'Admin',
+          adminRole: currentAdmin?.role || 'admin',
+          adminId: currentAdmin?.id,
+          category: 'anggota',
+          actionType: 'update',
+          targetTitle: data.nama,
+          details: `Memperbarui data anggota "${data.nama}" (Domisili: Kec. ${data.domisili || '-'}, Pendidikan: ${data.pendidikan || '-'})`,
+        });
+        showToast('Data anggota berhasil diperbarui.');
+      } else {
+        addMemberLocal(data, currentAdmin?.name || 'Admin');
+        recordActivityLog({
+          adminName: currentAdmin?.name || 'Admin',
+          adminRole: currentAdmin?.role || 'admin',
+          adminId: currentAdmin?.id,
+          category: 'anggota',
+          actionType: 'create',
+          targetTitle: data.nama,
+          details: `Menambahkan anggota baru "${data.nama}" (Kec. ${data.domisili || '-'}, Sayap: ${(data.organisasiInternal || []).join(', ') || '-'})`,
+        });
+        showToast('Anggota baru berhasil ditambahkan.');
+      }
+    } catch (err) {
+      console.error('Error saving member:', err);
+      showToast('Gagal menyimpan data anggota.', 'info');
+    } finally {
+      setMembers(loadMembersFromLocal());
+      setIsFormOpen(false);
+      setEditingMember(null);
     }
-    setMembers(loadMembersFromLocal());
-    setIsFormOpen(false);
-    setEditingMember(null);
   };
 
   // Delete Member Handler
   const handleConfirmDelete = () => {
     if (!deleteTarget) return;
-    deleteMemberLocal(deleteTarget.id);
-    recordActivityLog({
-      adminName: currentAdmin?.name || 'Admin',
-      adminRole: currentAdmin?.role || 'admin',
-      adminId: currentAdmin?.id,
-      category: 'anggota',
-      actionType: 'delete',
-      targetTitle: deleteTarget.nama,
-      details: `Menghapus data anggota "${deleteTarget.nama}" dari database`,
-    });
-    setMembers(loadMembersFromLocal());
-    showToast(`Data anggota "${deleteTarget.nama}" telah dihapus.`);
-    setDeleteTarget(null);
+    try {
+      deleteMemberLocal(deleteTarget.id);
+      recordActivityLog({
+        adminName: currentAdmin?.name || 'Admin',
+        adminRole: currentAdmin?.role || 'admin',
+        adminId: currentAdmin?.id,
+        category: 'anggota',
+        actionType: 'delete',
+        targetTitle: deleteTarget.nama,
+        details: `Menghapus data anggota "${deleteTarget.nama}" dari database`,
+      });
+      showToast(`Data anggota "${deleteTarget.nama}" telah dihapus.`);
+    } catch (err) {
+      console.error('Error deleting member:', err);
+    } finally {
+      setMembers(loadMembersFromLocal());
+      setDeleteTarget(null);
+    }
   };
 
   // Bulk Import Handler
   const handleBulkImportConfirm = (
     newMembers: Omit<Member, 'id' | 'createdAt' | 'updatedAt'>[]
   ) => {
-    const res = bulkImportMembersLocal(newMembers, currentAdmin?.name || 'Admin');
-    recordActivityLog({
-      adminName: currentAdmin?.name || 'Admin',
-      adminRole: currentAdmin?.role || 'admin',
-      adminId: currentAdmin?.id,
-      category: 'anggota',
-      actionType: 'import',
-      targetTitle: `${res.count} Anggota Baru`,
-      details: `Melakukan import massal ${res.count} data anggota melalui CSV / Spreadsheet`,
-    });
-    setMembers(loadMembersFromLocal());
-    showToast(`Berhasil mengimport ${res.count} data anggota baru.`);
+    try {
+      const res = bulkImportMembersLocal(newMembers, currentAdmin?.name || 'Admin');
+      recordActivityLog({
+        adminName: currentAdmin?.name || 'Admin',
+        adminRole: currentAdmin?.role || 'admin',
+        adminId: currentAdmin?.id,
+        category: 'anggota',
+        actionType: 'import',
+        targetTitle: `${res.count} Anggota Baru`,
+        details: `Melakukan import massal ${res.count} data anggota melalui CSV / Spreadsheet`,
+      });
+      showToast(`Berhasil mengimport ${res.count} data anggota baru.`);
+    } catch (err) {
+      console.error('Error in bulk import:', err);
+      showToast('Terjadi kesalahan saat import data.', 'info');
+    } finally {
+      setMembers(loadMembersFromLocal());
+      setIsBulkImportOpen(false);
+    }
   };
 
   // Event Management Handlers
@@ -506,7 +524,7 @@ export default function App() {
         }}
         onSave={handleSaveMember}
         initialMember={editingMember}
-        adminName={currentAdmin.name}
+        adminName={currentAdmin?.name || 'Admin'}
       />
 
       {/* Member Profile Detail Modal */}
@@ -529,6 +547,11 @@ export default function App() {
         existingMembers={members}
         onClose={() => setIsBulkImportOpen(false)}
         onImportConfirm={handleBulkImportConfirm}
+        onOpenInForm={memberData => {
+          setEditingMember(memberData);
+          setIsBulkImportOpen(false);
+          setIsFormOpen(true);
+        }}
       />
 
       {/* Admin Management Modal */}

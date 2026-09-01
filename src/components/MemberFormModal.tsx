@@ -18,13 +18,14 @@ import {
   loadMembersFromLocal,
   getAllOrganizations,
 } from '../lib/storage';
-import { X, Check, Plus, Trash2, Calendar, User, Phone, Mail, MapPin, Briefcase, GraduationCap, Award, Heart, Sparkles, MessageSquare, AlertCircle } from 'lucide-react';
+import { parseWhatsAppFormText, WA_FORM_TEMPLATE } from '../lib/waParser';
+import { X, Check, Plus, Trash2, Calendar, User, Phone, Mail, MapPin, Briefcase, GraduationCap, Award, Heart, Sparkles, MessageSquare, AlertCircle, Copy, ArrowDown } from 'lucide-react';
 
 interface MemberFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (memberData: Omit<Member, 'id' | 'createdAt' | 'updatedAt'>, editId?: string) => void;
-  initialMember?: Member | null;
+  initialMember?: Member | Partial<Member> | null;
   adminName: string;
   existingMembers?: Member[];
 }
@@ -62,7 +63,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
   const [skillInput, setSkillInput] = useState('');
   const [hobi, setHobi] = useState<string[]>([]);
   const [hobiInput, setHobiInput] = useState('');
-  const [pembinaan, setPembinaan] = useState<PembinaanType>('Sudah');
+  const [pembinaan, setPembinaan] = useState<PembinaanType>('Belum Pernah');
   const [jenjangPembinaan, setJenjangPembinaan] = useState<JenjangPembinaanType>('Muda');
   const [namaPembina, setNamaPembina] = useState('');
   const [catatanTambahan, setCatatanTambahan] = useState('');
@@ -72,17 +73,24 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
   const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[]>([]);
   const [pendingPayload, setPendingPayload] = useState<Omit<Member, 'id' | 'createdAt' | 'updatedAt'> | null>(null);
 
+  // Quick WA Paste Drawer State inside Form
+  const [showQuickWAPaste, setShowQuickWAPaste] = useState(false);
+  const [quickWAText, setQuickWAText] = useState('');
+  const [quickWACopied, setQuickWACopied] = useState(false);
+
   useEffect(() => {
     setAllOrgs(getAllOrganizations());
     setDuplicateMatches([]);
     setPendingPayload(null);
+    setShowQuickWAPaste(false);
+    setQuickWAText('');
     if (initialMember) {
       setNama(initialMember.nama || '');
       setNamaPanggilan(initialMember.namaPanggilan || '');
       setIsAnakKader(!!initialMember.isAnakKader);
       setNomorHp(initialMember.nomorHp || '');
-      setOrganisasiInternal(initialMember.organisasiInternal || []);
-      setTglLahir(initialMember.tglLahir || '');
+      setOrganisasiInternal(initialMember.organisasiInternal || ['PKS Muda']);
+      setTglLahir(initialMember.tglLahir || '2002-01-01');
       setInstagram(initialMember.sosmed?.instagram || '');
       setTiktok(initialMember.sosmed?.tiktok || '');
       setTwitter(initialMember.sosmed?.twitter || '');
@@ -95,7 +103,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       setJurusan(initialMember.jurusan || '');
       setKeahlian(initialMember.keahlian || []);
       setHobi(initialMember.hobi || []);
-      setPembinaan(initialMember.pembinaan || 'Sudah');
+      setPembinaan(initialMember.pembinaan || 'Belum Pernah');
       setJenjangPembinaan(initialMember.jenjangPembinaan || 'Muda');
       setNamaPembina(initialMember.namaPembina || '');
       setCatatanTambahan(initialMember.catatanTambahan || '');
@@ -119,13 +127,45 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       setJurusan('');
       setKeahlian([]);
       setHobi([]);
-      setPembinaan('Sudah');
+      setPembinaan('Belum Pernah');
       setJenjangPembinaan('Muda');
       setNamaPembina('');
       setCatatanTambahan('');
     }
     setErrors({});
   }, [initialMember, isOpen]);
+
+  const handleCopyWATemplate = () => {
+    navigator.clipboard.writeText(WA_FORM_TEMPLATE);
+    setQuickWACopied(true);
+    setTimeout(() => setQuickWACopied(false), 2500);
+  };
+
+  const handleApplyQuickWAPaste = () => {
+    if (!quickWAText.trim()) return;
+    const parsed = parseWhatsAppFormText(quickWAText);
+    if (parsed.nama) setNama(parsed.nama);
+    if (parsed.namaPanggilan) setNamaPanggilan(parsed.namaPanggilan);
+    if (parsed.nomorHp) setNomorHp(parsed.nomorHp);
+    if (parsed.tglLahir) setTglLahir(parsed.tglLahir);
+    if (parsed.alamatDetail) setAlamatDetail(parsed.alamatDetail);
+    if (parsed.domisili) setDomisili(parsed.domisili);
+    if (parsed.pendidikan) setPendidikan(parsed.pendidikan);
+    if (parsed.jurusan) setJurusan(parsed.jurusan);
+    if (parsed.aktivitas) setAktivitas(parsed.aktivitas);
+    if (parsed.keahlian && parsed.keahlian.length > 0) setKeahlian(parsed.keahlian);
+    if (parsed.hobi && parsed.hobi.length > 0) setHobi(parsed.hobi);
+    if (parsed.sosmed?.instagram) setInstagram(parsed.sosmed.instagram);
+    if (parsed.sosmed?.tiktok) setTiktok(parsed.sosmed.tiktok);
+    if (parsed.email) setEmail(parsed.email);
+    if (parsed.organisasiInternal && parsed.organisasiInternal.length > 0) setOrganisasiInternal(parsed.organisasiInternal);
+    if (parsed.pembinaan) setPembinaan(parsed.pembinaan);
+    if (parsed.jenjangPembinaan) setJenjangPembinaan(parsed.jenjangPembinaan);
+    if (parsed.namaPembina) setNamaPembina(parsed.namaPembina);
+    if (parsed.catatanTambahan) setCatatanTambahan(parsed.catatanTambahan);
+    setShowQuickWAPaste(false);
+    setQuickWAText('');
+  };
 
   // Combined Skills & Hobbies list (Defaults + Cloud Custom recommendations + Member data)
   const allSkillsList = useMemo(() => {
@@ -266,8 +306,13 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       return;
     }
 
-    onSave(payload, initialMember?.id);
-    onClose();
+    try {
+      onSave(payload, initialMember && 'id' in initialMember ? initialMember.id : undefined);
+    } catch (err) {
+      console.error('Error saving member:', err);
+    } finally {
+      onClose();
+    }
   };
 
   return (
@@ -278,22 +323,97 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
           <div>
             <h3 className="text-lg font-bold tracking-tight text-slate-900 flex items-center space-x-2">
               <User className="w-5 h-5 text-[#F27D26]" />
-              <span>{initialMember ? 'Edit Data Anggota' : 'Input Anggota Baru'}</span>
+              <span>
+                {initialMember && 'id' in initialMember && initialMember.id
+                  ? 'Edit Data Anggota'
+                  : initialMember?.nama
+                  ? 'Review & Lengkapi Data Anggota (Dari Form WA)'
+                  : 'Input Anggota Baru'}
+              </span>
             </h3>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
               BPPM PKS Kab. Malang
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => setShowQuickWAPaste(!showQuickWAPaste)}
+              className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center space-x-1.5 ${
+                showQuickWAPaste
+                  ? 'bg-orange-500 text-white border-orange-500'
+                  : 'bg-white border-orange-200 text-[#F27D26] hover:bg-orange-50'
+              }`}
+              title="Tempel teks formulir WhatsApp untuk mengisi form secara otomatis"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Isi Cepat dari Teks WA</span>
+              <span className="sm:hidden">Format WA</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable Form Body */}
         <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-6 overflow-y-auto flex-1">
+          {/* Collapsible Quick WA Paste Panel */}
+          {showQuickWAPaste && (
+            <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-orange-50 border border-orange-200 rounded-xl p-4 space-y-3 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between border-b border-orange-200/80 pb-2">
+                <span className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
+                  <Sparkles className="w-4 h-4 text-[#F27D26]" />
+                  <span>Tempel Teks Balasan WA Calon Anggota</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopyWATemplate}
+                  className="text-[11px] font-semibold text-[#F27D26] hover:underline flex items-center space-x-1"
+                >
+                  {quickWACopied ? (
+                    <span className="text-emerald-700 font-bold">✓ Template Tersalin</span>
+                  ) : (
+                    <span>Salin Format Template</span>
+                  )}
+                </button>
+              </div>
+
+              <textarea
+                value={quickWAText}
+                onChange={e => setQuickWAText(e.target.value)}
+                rows={5}
+                placeholder={`Tempel teks balasan WA anggota di sini...\n\nNama Lengkap : Ahmad Fauzi\nNo. HP (WA) : 081234567890\nEmail : fauzi@gmail.com\nTgl Lahir : 14/05/2001\nAlamat lengkap : Kepanjen, Malang\nPendidikan Terakhir/saat ini : S1`}
+                className="w-full bg-white border border-slate-200 focus:border-[#F27D26] text-slate-900 text-xs font-mono rounded-xl p-3 outline-none resize-none font-medium"
+              />
+
+              <div className="flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowQuickWAPaste(false);
+                    setQuickWAText('');
+                  }}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 text-xs font-semibold rounded-lg"
+                >
+                  Tutup
+                </button>
+                <button
+                  type="button"
+                  disabled={!quickWAText.trim()}
+                  onClick={handleApplyQuickWAPaste}
+                  className="px-4 py-1.5 bg-[#F27D26] hover:bg-orange-600 disabled:opacity-40 text-white text-xs font-bold rounded-lg shadow-2xs flex items-center space-x-1.5"
+                >
+                  <ArrowDown className="w-3.5 h-3.5" />
+                  <span>Terapkan ke Form di Bawah</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Section 1: Data Identitas Utama */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
             <div className="text-xs font-bold text-[#F27D26] uppercase tracking-wider flex items-center space-x-1.5 border-b border-slate-200 pb-2">
@@ -802,7 +922,9 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
               type="submit"
               className="px-6 py-2.5 bg-[#F27D26] hover:bg-orange-600 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
             >
-              {initialMember ? 'Simpan Perubahan' : 'Simpan Anggota Baru'}
+              {initialMember && 'id' in initialMember && initialMember.id
+                ? 'Simpan Perubahan'
+                : 'Simpan Anggota Baru'}
             </button>
           </div>
         </form>
@@ -879,7 +1001,11 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                   type="button"
                   onClick={() => {
                     if (pendingPayload) {
-                      onSave(pendingPayload, initialMember?.id);
+                      try {
+                        onSave(pendingPayload, initialMember && 'id' in initialMember ? initialMember.id : undefined);
+                      } catch (err) {
+                        console.error('Error saving member payload:', err);
+                      }
                     }
                     setDuplicateMatches([]);
                     setPendingPayload(null);
