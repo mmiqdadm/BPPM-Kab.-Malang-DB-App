@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { Member, OrganisasiType, PendidikanType, PembinaanType, JenjangPembinaanType } from '../types';
-import { WA_FORM_TEMPLATE, parseWhatsAppFormText, parsePendidikanLevel, ParsedWAMember } from '../lib/waParser';
+import { Member, JenisKelaminType, OrganisasiType, PendidikanType, PembinaanType, JenjangPembinaanType } from '../types';
+import { WA_FORM_TEMPLATE, parseWhatsAppFormText, parsePendidikanLevel, parseJenisKelaminFlexible, ParsedWAMember } from '../lib/waParser';
 import { calculateAge, getDapilByKecamatan } from '../lib/utils';
 import {
   X,
@@ -79,6 +79,14 @@ function buildHeaderColumnMap(headers: string[]): Record<string, number> {
       map['jenjang'] = idx;
     } else if (clean === 'nama' || clean.includes('nama lengkap') || clean.includes('nama_lengkap') || (clean.includes('nama') && !clean.includes('pembina'))) {
       map['nama'] = idx;
+    } else if (
+      clean.includes('jenis kelamin') ||
+      clean.includes('kelamin') ||
+      clean.includes('gender') ||
+      clean === 'jk' ||
+      clean === 'sex'
+    ) {
+      map['jk'] = idx;
     } else if (clean.includes('hp') || clean.includes('telp') || clean.includes('wa') || clean.includes('telepon') || clean.includes('handphone')) {
       map['hp'] = idx;
     } else if (clean.includes('organisasi') || clean.includes('sayap') || clean.includes('org')) {
@@ -215,6 +223,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
   const downloadSampleCSV = () => {
     const sampleHeaders = [
       'Nama',
+      'Jenis Kelamin',
       'Nomor HP',
       'Organisasi Internal',
       'Tanggal Lahir',
@@ -234,6 +243,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
 
     const sampleRow1 = [
       'Budi Santoso',
+      'Pria',
       '081234567890',
       '"PKS Muda, GK"',
       '2002-08-17',
@@ -253,6 +263,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
 
     const sampleRow2 = [
       'Dewi Saraswati',
+      'Wanita',
       '082198765432',
       'Kepemudaan',
       '2004-03-25',
@@ -325,10 +336,13 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
     pem: string,
     catatan: string,
     jenjangStr?: string,
-    pembinaStr?: string
+    pembinaStr?: string,
+    jkStr?: string
   ): Omit<Member, 'id' | 'createdAt' | 'updatedAt'> | null => {
     const cleanNama = (nama || '').trim();
     if (!cleanNama) return null;
+
+    const cleanJk: JenisKelaminType = parseJenisKelaminFlexible(jkStr);
 
     // Parse internal org checklist (delimited by comma, semicolon, or slash)
     const rawOrgs = (orgStr || '')
@@ -392,6 +406,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
 
     return {
       nama: cleanNama,
+      jenisKelamin: cleanJk,
       nomorHp: (hp || '').trim(),
       organisasiInternal: Array.from(new Set(validOrgs)),
       tglLahir: cleanDate,
@@ -445,6 +460,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
       if (cols.length === 0 || !cols.some(c => c.length > 0)) continue;
 
       let nama = '';
+      let jk = '';
       let hp = '';
       let org = '';
       let tgl: any = '';
@@ -463,6 +479,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
 
       if (isHeaderRow && Object.keys(headerMap).length > 0) {
         nama = headerMap['nama'] !== undefined ? cols[headerMap['nama']] : cols[0] || '';
+        jk = headerMap['jk'] !== undefined ? cols[headerMap['jk']] : '';
         hp = headerMap['hp'] !== undefined ? cols[headerMap['hp']] : cols[1] || '';
         org = headerMap['org'] !== undefined ? cols[headerMap['org']] : cols[2] || '';
         tgl = headerMap['tgl'] !== undefined ? cols[headerMap['tgl']] : cols[3] || '';
@@ -479,21 +496,30 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
         pembina = headerMap['pembina'] !== undefined ? cols[headerMap['pembina']] : '';
         catatan = headerMap['catatan'] !== undefined ? cols[headerMap['catatan']] : '';
       } else {
-        // Positional parsing
-        [nama, hp, org, tgl, email, dom, alamat, akt, edu, jur, skills, hobi, pem] = cols;
-        const col13 = cols[13] || '';
-        const col14 = cols[14] || '';
-        const col15 = cols[15] || '';
-
-        if (cols.length >= 16) {
-          jenjang = col13;
-          pembina = col14;
-          catatan = col15;
-        } else if (cols.length === 15) {
-          jenjang = col13;
-          pembina = col14;
+        // Positional parsing: check if column 1 is gender or phone number
+        const col1 = (cols[1] || '').trim();
+        const isCol1Phone = col1.replace(/\D/g, '').length >= 7;
+        if (!isCol1Phone && (col1.toLowerCase().includes('pria') || col1.toLowerCase().includes('wanita') || col1.toLowerCase().includes('laki') || col1.toLowerCase().includes('perempuan') || col1 === 'L' || col1 === 'P' || col1 === '-')) {
+          nama = cols[0] || '';
+          jk = col1;
+          [hp, org, tgl, email, dom, alamat, akt, edu, jur, skills, hobi, pem] = cols.slice(2);
+          catatan = cols[14] || '';
         } else {
-          catatan = col13;
+          [nama, hp, org, tgl, email, dom, alamat, akt, edu, jur, skills, hobi, pem] = cols;
+          const col13 = cols[13] || '';
+          const col14 = cols[14] || '';
+          const col15 = cols[15] || '';
+
+          if (cols.length >= 16) {
+            jenjang = col13;
+            pembina = col14;
+            catatan = col15;
+          } else if (cols.length === 15) {
+            jenjang = col13;
+            pembina = col14;
+          } else {
+            catatan = col13;
+          }
         }
       }
 
@@ -513,7 +539,8 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
         pem,
         catatan,
         jenjang,
-        pembina
+        pembina,
+        jk
       );
 
       if (mapped) {
@@ -575,6 +602,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
           const offset = !isHeaderRow && firstCol.match(/^\d+$/) ? 1 : 0;
 
           let nama = '';
+          let jk = '';
           let hp = '';
           let org = '';
           let tgl: any = '';
@@ -593,6 +621,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
 
           if (isHeaderRow && Object.keys(headerMap).length > 0) {
             nama = headerMap['nama'] !== undefined ? String(row[headerMap['nama']] || '') : String(row[0] || '');
+            jk = headerMap['jk'] !== undefined ? String(row[headerMap['jk']] || '') : '';
             hp = headerMap['hp'] !== undefined ? String(row[headerMap['hp']] || '') : String(row[1] || '');
             org = headerMap['org'] !== undefined ? String(row[headerMap['org']] || '') : String(row[2] || '');
             tgl = headerMap['tgl'] !== undefined ? row[headerMap['tgl']] : row[3];
@@ -609,32 +638,52 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
             pembina = headerMap['pembina'] !== undefined ? String(row[headerMap['pembina']] || '') : '';
             catatan = headerMap['catatan'] !== undefined ? String(row[headerMap['catatan']] || '') : '';
           } else {
-            nama = String(row[offset] || '');
-            hp = String(row[offset + 1] || '');
-            org = String(row[offset + 2] || '');
-            tgl = row[offset + 3];
-            email = String(row[offset + 4] || '');
-            dom = String(row[offset + 5] || '');
-            alamat = String(row[offset + 6] || '');
-            akt = String(row[offset + 7] || '');
-            edu = String(row[offset + 8] || '');
-            jur = String(row[offset + 9] || '');
-            skills = String(row[offset + 10] || '');
-            hobi = String(row[offset + 11] || '');
-            pem = String(row[offset + 12] || '');
-            const col13 = String(row[offset + 13] || '');
-            const col14 = String(row[offset + 14] || '');
-            const col15 = String(row[offset + 15] || '');
-
-            if (row[offset + 15] !== undefined) {
-              jenjang = col13;
-              pembina = col14;
-              catatan = col15;
-            } else if (row[offset + 14] !== undefined) {
-              jenjang = col13;
-              catatan = col14;
+            const col1 = String(row[offset + 1] || '').trim();
+            const isCol1Phone = col1.replace(/\D/g, '').length >= 7;
+            if (!isCol1Phone && (col1.toLowerCase().includes('pria') || col1.toLowerCase().includes('wanita') || col1.toLowerCase().includes('laki') || col1.toLowerCase().includes('perempuan') || col1 === 'L' || col1 === 'P' || col1 === '-')) {
+              nama = String(row[offset] || '');
+              jk = col1;
+              hp = String(row[offset + 2] || '');
+              org = String(row[offset + 3] || '');
+              tgl = row[offset + 4];
+              email = String(row[offset + 5] || '');
+              dom = String(row[offset + 6] || '');
+              alamat = String(row[offset + 7] || '');
+              akt = String(row[offset + 8] || '');
+              edu = String(row[offset + 9] || '');
+              jur = String(row[offset + 10] || '');
+              skills = String(row[offset + 11] || '');
+              hobi = String(row[offset + 12] || '');
+              pem = String(row[offset + 13] || '');
+              catatan = String(row[offset + 14] || '');
             } else {
-              catatan = col13;
+              nama = String(row[offset] || '');
+              hp = String(row[offset + 1] || '');
+              org = String(row[offset + 2] || '');
+              tgl = row[offset + 3];
+              email = String(row[offset + 4] || '');
+              dom = String(row[offset + 5] || '');
+              alamat = String(row[offset + 6] || '');
+              akt = String(row[offset + 7] || '');
+              edu = String(row[offset + 8] || '');
+              jur = String(row[offset + 9] || '');
+              skills = String(row[offset + 10] || '');
+              hobi = String(row[offset + 11] || '');
+              pem = String(row[offset + 12] || '');
+              const col13 = String(row[offset + 13] || '');
+              const col14 = String(row[offset + 14] || '');
+              const col15 = String(row[offset + 15] || '');
+
+              if (row[offset + 15] !== undefined) {
+                jenjang = col13;
+                pembina = col14;
+                catatan = col15;
+              } else if (row[offset + 14] !== undefined) {
+                jenjang = col13;
+                catatan = col14;
+              } else {
+                catatan = col13;
+              }
             }
           }
 
@@ -654,7 +703,8 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
             pem,
             catatan,
             jenjang,
-            pembina
+            pembina,
+            jk
           );
 
           if (mapped) {
@@ -964,6 +1014,17 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
                                 {parsedWAMember.namaPanggilan}
                               </span>
                             )}
+                            {parsedWAMember.jenisKelamin && parsedWAMember.jenisKelamin !== '-' && (
+                              <span
+                                className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
+                                  parsedWAMember.jenisKelamin === 'Pria'
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                                }`}
+                              >
+                                {parsedWAMember.jenisKelamin}
+                              </span>
+                            )}
                           </div>
                           <div className="text-[11px] text-slate-500 font-medium">
                             🎂 {parsedWAMember.tglLahir}{' '}
@@ -1198,6 +1259,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
                         <tr>
                           <th className="p-2">No</th>
                           <th className="p-2">Nama</th>
+                          <th className="p-2">JK</th>
                           <th className="p-2">Nomor HP</th>
                           <th className="p-2">Organisasi</th>
                           <th className="p-2">Domisili</th>
@@ -1209,6 +1271,21 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
                           <tr key={idx} className="hover:bg-slate-50/80">
                             <td className="p-2 font-mono text-slate-400">{idx + 1}</td>
                             <td className="p-2 font-semibold text-slate-900">{item.nama}</td>
+                            <td className="p-2">
+                              {item.jenisKelamin && item.jenisKelamin !== '-' ? (
+                                <span
+                                  className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
+                                    item.jenisKelamin === 'Pria'
+                                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                                  }`}
+                                >
+                                  {item.jenisKelamin}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">-</span>
+                              )}
+                            </td>
                             <td className="p-2">{item.nomorHp || '-'}</td>
                             <td className="p-2 text-[#F27D26] font-bold">
                               {(item.organisasiInternal || []).join(', ')}

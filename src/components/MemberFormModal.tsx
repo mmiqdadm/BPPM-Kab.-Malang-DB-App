@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Member, OrganisasiType, PendidikanType, PembinaanType, JenjangPembinaanType } from '../types';
+import { Member, JenisKelaminType, OrganisasiType, PendidikanType, PembinaanType, JenjangPembinaanType } from '../types';
 import {
   KECAMATAN_MALANG,
   SUGGESTED_SKILLS,
@@ -45,6 +45,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
 }) => {
   const [nama, setNama] = useState('');
   const [namaPanggilan, setNamaPanggilan] = useState('');
+  const [jenisKelamin, setJenisKelamin] = useState<JenisKelaminType>('-');
   const [isAnakKader, setIsAnakKader] = useState(false);
   const [nomorHp, setNomorHp] = useState('');
   const [organisasiInternal, setOrganisasiInternal] = useState<OrganisasiType[]>(['Belum']);
@@ -89,6 +90,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
     if (initialMember) {
       setNama(initialMember.nama || '');
       setNamaPanggilan(initialMember.namaPanggilan || '');
+      setJenisKelamin(initialMember.jenisKelamin || '-');
       setIsAnakKader(!!initialMember.isAnakKader);
       setNomorHp(initialMember.nomorHp || '');
       setOrganisasiInternal(
@@ -117,6 +119,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       // Default reset
       setNama('');
       setNamaPanggilan('');
+      setJenisKelamin('-');
       setIsAnakKader(false);
       setNomorHp('');
       setOrganisasiInternal(['Belum']);
@@ -152,6 +155,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
     const parsed = parseWhatsAppFormText(quickWAText);
     if (parsed.nama) setNama(parsed.nama);
     if (parsed.namaPanggilan) setNamaPanggilan(parsed.namaPanggilan);
+    if (parsed.jenisKelamin) setJenisKelamin(parsed.jenisKelamin);
     if (parsed.nomorHp) setNomorHp(parsed.nomorHp);
     if (parsed.tglLahir) setTglLahir(parsed.tglLahir);
     if (parsed.alamatDetail) setAlamatDetail(parsed.alamatDetail);
@@ -264,6 +268,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
     const payload: Omit<Member, 'id' | 'createdAt' | 'updatedAt'> = {
       nama: nama.trim(),
       namaPanggilan: namaPanggilan.trim() || undefined,
+      jenisKelamin: jenisKelamin || '-',
       isAnakKader,
       nomorHp: nomorHp.trim(),
       organisasiInternal: organisasiInternal.length > 0 ? organisasiInternal : ['Belum'],
@@ -485,6 +490,22 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                 />
               </div>
 
+              {/* Jenis Kelamin (Opsional: Dropdown Menu) */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Jenis Kelamin <span className="text-slate-400 font-normal text-[11px]">(Opsional)</span>
+                </label>
+                <select
+                  value={jenisKelamin}
+                  onChange={e => setJenisKelamin(e.target.value as JenisKelaminType)}
+                  className="w-full bg-white border border-slate-200 focus:border-[#F27D26] text-slate-900 text-sm rounded-xl px-3.5 py-2.5 outline-none font-medium"
+                >
+                  <option value="-">- (Belum Diisi)</option>
+                  <option value="Pria">Pria</option>
+                  <option value="Wanita">Wanita</option>
+                </select>
+              </div>
+
               {/* Nomor HP */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -661,7 +682,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                           <label className="block text-xs font-semibold text-slate-700">
                             Nama Pembina
                           </label>
-                          <span className="text-[10px] text-amber-700 font-medium">Otomatis 'belum tahu' jika kosong</span>
+                          <span className="text-[10px] text-amber-700 font-medium"> </span>
                         </div>
                         <input
                           type="text"

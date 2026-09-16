@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Member, EventItem, EventAttendance, OrganisasiType, PembinaanType, PendidikanType, JenjangPembinaanType } from '../types';
+import { Member, EventItem, EventAttendance, OrganisasiType, PembinaanType, PendidikanType, JenjangPembinaanType, JenisKelaminType } from '../types';
 import { calculateAge, getActivityRating, getDapilByKecamatan } from '../lib/utils';
-import { KECAMATAN_MALANG, ORGANISASI_LIST, PEMBINAAN_LIST, DAPIL_MALANG, DAPIL_LIST, JENJANG_PEMBINAAN_LIST, PENDIDIKAN_LIST } from '../data/constants';
+import { KECAMATAN_MALANG, ORGANISASI_LIST, PEMBINAAN_LIST, DAPIL_MALANG, DAPIL_LIST, JENJANG_PEMBINAAN_LIST, PENDIDIKAN_LIST, JENIS_KELAMIN_LIST } from '../data/constants';
 import { getAllOrganizations } from '../lib/storage';
 import {
   PieChart,
@@ -19,6 +19,7 @@ import {
   Users,
   Award,
   BookOpen,
+  GraduationCap,
   MapPin,
   Heart,
   Sparkles,
@@ -64,6 +65,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
   const [selectedPendidikanFilter, setSelectedPendidikanFilter] = useState<PendidikanType | 'Semua'>('Semua');
   const [selectedAgeRangeFilter, setSelectedAgeRangeFilter] = useState<string>('Semua');
   const [selectedAnakKaderFilter, setSelectedAnakKaderFilter] = useState<'Semua' | 'ya' | 'bukan'>('Semua');
+  const [selectedJenisKelaminFilter, setSelectedJenisKelaminFilter] = useState<JenisKelaminType | 'Semua'>('Semua');
   const [allOrgs, setAllOrgs] = useState<string[]>(getAllOrganizations());
 
   useEffect(() => {
@@ -214,7 +216,16 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
         else if (selectedAnakKaderFilter === 'bukan') matchAnakKader = !m.isAnakKader;
       }
 
-      return matchOrg && matchDapil && matchPembinaan && matchJenjang && matchEdu && matchAge && matchAnakKader;
+      let matchJk = true;
+      if (selectedJenisKelaminFilter !== 'Semua') {
+        if (selectedJenisKelaminFilter === '-') {
+          matchJk = !m.jenisKelamin || m.jenisKelamin === '-';
+        } else {
+          matchJk = m.jenisKelamin === selectedJenisKelaminFilter;
+        }
+      }
+
+      return matchOrg && matchDapil && matchPembinaan && matchJenjang && matchEdu && matchAge && matchAnakKader && matchJk;
     });
   }, [
     members,
@@ -225,6 +236,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
     selectedPendidikanFilter,
     selectedAgeRangeFilter,
     selectedAnakKaderFilter,
+    selectedJenisKelaminFilter,
   ]);
 
   // Key KPI Metrics
@@ -341,18 +353,228 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
     }));
   }, [filteredData]);
 
-  // 4. Education Distribution
-  const educationDistribution = useMemo(() => {
-    const counts: Record<string, number> = {};
+  // Helper to categorize academic field / cluster
+  const categorizeMajor = (jurusanRaw?: string): string => {
+    if (!jurusanRaw || jurusanRaw.trim() === '-' || jurusanRaw.trim() === '') {
+      return 'Belum Diisi';
+    }
+    const j = jurusanRaw.toLowerCase().trim();
+
+    // 1. Teknologi & Rekayasa
+    if (
+      j.includes('informatika') ||
+      j.includes('komputer') ||
+      j.includes('sistem informasi') ||
+      j.includes('teknologi informasi') ||
+      j.includes('software') ||
+      j.includes('elektro') ||
+      j.includes('mesin') ||
+      j.includes('sipil') ||
+      j.includes('industri') ||
+      j.includes('arsitektur') ||
+      j.includes('teknik') ||
+      j.includes('rpl') ||
+      j.includes('tkj')
+    ) {
+      return 'Teknologi & Rekayasa';
+    }
+
+    // 2. Ekonomi & Bisnis
+    if (
+      j.includes('manajemen') ||
+      j.includes('akuntansi') ||
+      j.includes('ekonomi') ||
+      j.includes('bisnis') ||
+      j.includes('keuangan') ||
+      j.includes('perbankan') ||
+      j.includes('pemasaran') ||
+      j.includes('administrasi niaga') ||
+      j.includes('perpajakan')
+    ) {
+      return 'Ekonomi & Bisnis';
+    }
+
+    // 3. Pendidikan & Keguruan
+    if (
+      j.includes('pendidikan') ||
+      j.includes('pgsd') ||
+      j.includes('tarbiyah') ||
+      j.includes('keguruan') ||
+      j.includes('tadris') ||
+      j.includes('bimbingan konseling') ||
+      j.includes('bahasa inggris') ||
+      j.includes('bahasa indonesia') ||
+      j.includes('bahasa arab')
+    ) {
+      return 'Pendidikan & Keguruan';
+    }
+
+    // 4. Sosial, Dakwah, Hukum & Agama
+    if (
+      j.includes('komunikasi') ||
+      j.includes('hukum') ||
+      j.includes('psikologi') ||
+      j.includes('syariah') ||
+      j.includes('pai') ||
+      j.includes('ushuluddin') ||
+      j.includes('dakwah') ||
+      j.includes('sosial') ||
+      j.includes('politik') ||
+      j.includes('hubungan internasional') ||
+      j.includes('sosiologi') ||
+      j.includes('ilmu al-qur') ||
+      j.includes('hadis')
+    ) {
+      return 'Sosial, Dakwah & Hukum';
+    }
+
+    // 5. Kesehatan & Medis
+    if (
+      j.includes('kedokteran') ||
+      j.includes('keperawatan') ||
+      j.includes('kebidanan') ||
+      j.includes('farmasi') ||
+      j.includes('gizi') ||
+      j.includes('kesehatan')
+    ) {
+      return 'Kesehatan & Medis';
+    }
+
+    // 6. Sains, Pertanian & Lingkungan
+    if (
+      j.includes('biologi') ||
+      j.includes('kimia') ||
+      j.includes('fisika') ||
+      j.includes('matematika') ||
+      j.includes('pertanian') ||
+      j.includes('agroteknologi') ||
+      j.includes('agribisnis') ||
+      j.includes('peternakan') ||
+      j.includes('kehutanan') ||
+      j.includes('perikanan')
+    ) {
+      return 'Sains & Pertanian';
+    }
+
+    // 7. Desain & Seni Kreatif
+    if (
+      j.includes('desain') ||
+      j.includes('dkv') ||
+      j.includes('seni') ||
+      j.includes('animasi') ||
+      j.includes('multimedia') ||
+      j.includes('film')
+    ) {
+      return 'Desain & Seni Kreatif';
+    }
+
+    return 'Lainnya';
+  };
+
+  // Gender Distribution & Ratio
+  const genderStats = useMemo(() => {
+    let pria = 0;
+    let wanita = 0;
+    let unassigned = 0;
+
     filteredData.forEach(m => {
-      const edu = m.pendidikan || 'Lainnya';
-      counts[edu] = (counts[edu] || 0) + 1;
+      if (m.jenisKelamin === 'Pria') pria++;
+      else if (m.jenisKelamin === 'Wanita') wanita++;
+      else unassigned++;
     });
 
-    return Object.entries(counts)
+    const total = filteredData.length;
+    const priaPercent = total > 0 ? Math.round((pria / total) * 100) : 0;
+    const wanitaPercent = total > 0 ? Math.round((wanita / total) * 100) : 0;
+    const unassignedPercent = total > 0 ? Math.round((unassigned / total) * 100) : 0;
+
+    const chartData = [
+      { name: 'Pria', value: pria, color: '#0284C7' },
+      { name: 'Wanita', value: wanita, color: '#E11D48' },
+      ...(unassigned > 0 ? [{ name: 'Belum Diisi', value: unassigned, color: '#94A3B8' }] : []),
+    ];
+
+    return {
+      pria,
+      wanita,
+      unassigned,
+      priaPercent,
+      wanitaPercent,
+      unassignedPercent,
+      chartData,
+    };
+  }, [filteredData]);
+
+  // 4. Comprehensive Education & Major Analysis
+  const educationStats = useMemo(() => {
+    const levelCounts: Record<string, number> = {};
+    const majorCounts: Record<string, number> = {};
+    const clusterCounts: Record<string, number> = {};
+    let collegeCount = 0; // D3, S1, S2, S3
+    let totalWithMajor = 0;
+
+    filteredData.forEach(m => {
+      // Jenjang Pendidikan
+      const edu = m.pendidikan || 'Lainnya';
+      levelCounts[edu] = (levelCounts[edu] || 0) + 1;
+
+      const upperEdu = edu.toUpperCase();
+      if (
+        upperEdu === 'D3' ||
+        upperEdu === 'S1' ||
+        upperEdu === 'S2' ||
+        upperEdu === 'S3' ||
+        upperEdu.includes('DIPLOMA') ||
+        upperEdu.includes('SARJANA')
+      ) {
+        collegeCount++;
+      }
+
+      // Jurusan / Program Studi
+      const rawMajor = (m.jurusan || '').trim();
+      if (rawMajor && rawMajor !== '-') {
+        totalWithMajor++;
+        const normalized = rawMajor
+          .split(' ')
+          .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+          .join(' ');
+        majorCounts[normalized] = (majorCounts[normalized] || 0) + 1;
+      }
+
+      // Klaster Keilmuan
+      const cluster = categorizeMajor(m.jurusan);
+      clusterCounts[cluster] = (clusterCounts[cluster] || 0) + 1;
+    });
+
+    const levelDistribution = Object.entries(levelCounts)
       .map(([name, Jumlah]) => ({ name, Jumlah }))
       .sort((a, b) => b.Jumlah - a.Jumlah);
+
+    const topMajors = Object.entries(majorCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+
+    const clusterDistribution = Object.entries(clusterCounts)
+      .filter(([name]) => name !== 'Belum Diisi')
+      .map(([name, Jumlah]) => ({ name, Jumlah }))
+      .sort((a, b) => b.Jumlah - a.Jumlah);
+
+    const total = filteredData.length;
+    const collegePercent = total > 0 ? Math.round((collegeCount / total) * 100) : 0;
+
+    return {
+      levelDistribution,
+      topMajors,
+      clusterDistribution,
+      collegeCount,
+      collegePercent,
+      totalWithMajor,
+    };
   }, [filteredData]);
+
+  // Backward compatibility alias for existing chart
+  const educationDistribution = educationStats.levelDistribution;
 
   // 5. Domicile (Kecamatan in Kab. Malang) Top 8
   const domicileDistribution = useMemo(() => {
@@ -545,7 +767,8 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
     selectedJenjangFilter !== 'Semua' ||
     selectedPendidikanFilter !== 'Semua' ||
     selectedAgeRangeFilter !== 'Semua' ||
-    selectedAnakKaderFilter !== 'Semua';
+    selectedAnakKaderFilter !== 'Semua' ||
+    selectedJenisKelaminFilter !== 'Semua';
 
   const handleResetFilters = () => {
     setSelectedOrgFilter('Semua');
@@ -555,6 +778,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
     setSelectedPendidikanFilter('Semua');
     setSelectedAgeRangeFilter('Semua');
     setSelectedAnakKaderFilter('Semua');
+    setSelectedJenisKelaminFilter('Semua');
   };
 
   return (
@@ -678,6 +902,18 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
             <option value="bukan">Bukan Anak Kader</option>
           </select>
 
+          {/* Angle 8: Jenis Kelamin */}
+          <select
+            value={selectedJenisKelaminFilter}
+            onChange={e => setSelectedJenisKelaminFilter(e.target.value as any)}
+            className="bg-slate-50 text-slate-800 border border-slate-200 text-xs rounded-lg px-2.5 py-1.5 outline-none focus:border-[#F27D26] font-semibold"
+          >
+            <option value="Semua">Semua JK</option>
+            <option value="Pria">Pria</option>
+            <option value="Wanita">Wanita</option>
+            <option value="-">- (Belum Diisi)</option>
+          </select>
+
           {hasActiveFilters && (
             <button
               onClick={handleResetFilters}
@@ -700,7 +936,9 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
             </div>
           </div>
           <div className="text-xl font-black text-slate-900 mt-1">{totalCount}</div>
-          <p className="text-[10px] text-slate-500 font-medium truncate">Dalam filter aktif</p>
+          <p className="text-[10px] text-slate-500 font-medium truncate">
+            {genderStats.pria} Pria • {genderStats.wanita} Wanita
+          </p>
         </div>
 
         {/* Card 2: Tingkat Keterbinaan */}
@@ -771,7 +1009,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
       </div>
 
       {/* ROW 1: DEMOGRAFI & SAYAP ORGANISASI */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Age Range Donut Chart */}
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
           <div className="flex items-center justify-between mb-2">
@@ -779,7 +1017,7 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
               <PieIcon className="w-3.5 h-3.5 text-[#F27D26]" />
               <span>Distribusi Rentang Usia & Generasi</span>
             </h3>
-            <span className="text-[10px] text-slate-400 font-medium">Segmentasi Pemuda</span>
+            <span className="text-[10px] text-slate-400 font-medium">Segmentasi Usia</span>
           </div>
 
           <div className="h-52">
@@ -804,6 +1042,63 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
                 <Legend formatter={(value) => <span className="text-[11px] text-slate-600 font-medium">{value}</span>} />
               </PieChart>
             </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Gender Demographics Donut Chart & Breakdown */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
+                <Users className="w-3.5 h-3.5 text-sky-600" />
+                <span>Distribusi Demografi Jenis Kelamin</span>
+              </h3>
+              <span className="text-[10px] text-slate-600 font-bold bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                {genderStats.priaPercent}% L : {genderStats.wanitaPercent}% P
+              </span>
+            </div>
+
+            <div className="h-40">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={genderStats.chartData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={40}
+                    outerRadius={65}
+                    paddingAngle={3}
+                    dataKey="value"
+                  >
+                    {genderStats.chartData.map((entry, index) => (
+                      <Cell key={`gender-cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', color: '#1e293b', fontSize: '11px' }}
+                  />
+                  <Legend formatter={(value) => <span className="text-[11px] text-slate-600 font-medium">{value}</span>} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 mt-1">
+            <div className="bg-sky-50/80 p-2 rounded-xl border border-sky-100 text-center">
+              <span className="text-[10px] text-sky-700 font-bold block">Pria (Ikhwan)</span>
+              <span className="text-sm font-black text-sky-900">{genderStats.pria} Kader</span>
+              <span className="text-[10px] text-sky-600 font-semibold block">{genderStats.priaPercent}%</span>
+            </div>
+            <div className="bg-rose-50/80 p-2 rounded-xl border border-rose-100 text-center">
+              <span className="text-[10px] text-rose-700 font-bold block">Wanita (Akhwat)</span>
+              <span className="text-sm font-black text-rose-900">{genderStats.wanita} Kader</span>
+              <span className="text-[10px] text-rose-600 font-semibold block">{genderStats.wanitaPercent}%</span>
+            </div>
+            {genderStats.unassigned > 0 && (
+              <div className="col-span-2 bg-slate-50 p-1.5 rounded-lg border border-slate-200 text-center text-[10px] text-slate-500 font-medium">
+                Belum Terdata / Kosong: <span className="font-bold text-slate-700">{genderStats.unassigned}</span> ({genderStats.unassignedPercent}%)
+              </div>
+            )}
           </div>
         </div>
 
@@ -1031,54 +1326,206 @@ export const DashboardAnalytics: React.FC<DashboardAnalyticsProps> = ({
         </div>
       </div>
 
-      {/* ROW 4: AKTIVITAS/PROFESI & LATAR BELAKANG PENDIDIKAN */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Aktivitas / Profesi Anggota */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
-              <Briefcase className="w-3.5 h-3.5 text-[#F27D26]" />
-              <span>Aktivitas & Profesi Utama Anggota</span>
-            </h3>
-            <span className="text-[10px] text-slate-400 font-medium">Potensi Karir</span>
+      {/* ROW 4: ANALITIK PENDIDIKAN, JURUSAN & KLASTER KEILMUAN */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div className="flex items-center space-x-2.5">
+            <div className="p-2.5 bg-blue-50 border border-blue-100 rounded-xl text-blue-600">
+              <GraduationCap className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-extrabold text-slate-900 tracking-tight">
+                Analitik Pendidikan & Jurusan Anggota
+              </h2>
+              <p className="text-xs text-slate-500 font-medium">
+                Pemetaan jenjang akademik, program studi/jurusan, dan klaster keilmuan kader muda
+              </p>
+            </div>
           </div>
-
-          <div className="h-52">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={activityDistribution} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} />
-                <YAxis stroke="#64748b" fontSize={11} tickLine={false} allowDecimals={false} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', color: '#1e293b', fontSize: '11px' }}
-                />
-                <Bar dataKey="Jumlah" fill="#F27D26" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="bg-blue-50 text-blue-700 text-[11px] font-bold px-3 py-1 rounded-full border border-blue-200">
+              {educationStats.collegePercent}% Perguruan Tinggi ({educationStats.collegeCount} Kader)
+            </span>
+            <span className="bg-slate-100 text-slate-700 text-[11px] font-bold px-3 py-1 rounded-full border border-slate-200">
+              {educationStats.totalWithMajor} Kader Berdata Jurusan
+            </span>
           </div>
         </div>
 
-        {/* Tingkat Pendidikan Chart */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
-              <BookOpen className="w-3.5 h-3.5 text-blue-500" />
-              <span>Jenjang Pendidikan Terakhir</span>
-            </h3>
-            <span className="text-[10px] text-slate-400 font-medium">Latar Belakang Akademik</span>
+        {/* 4 Academic Mini KPI Highlights */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-200 space-y-1">
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Pendidikan Tinggi (PT)</div>
+            <div className="text-lg font-black text-blue-600">{educationStats.collegeCount} Kader</div>
+            <p className="text-[10px] text-slate-500 font-medium">{educationStats.collegePercent}% D3/S1/S2/S3</p>
           </div>
 
-          <div className="h-52">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={educationDistribution} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
-                <XAxis type="number" stroke="#64748b" fontSize={11} tickLine={false} allowDecimals={false} />
-                <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={11} tickLine={false} width={65} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', color: '#1e293b', fontSize: '11px' }}
-                />
-                <Bar dataKey="Jumlah" fill="#3B82F6" radius={[0, 6, 6, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-200 space-y-1">
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Pendidikan Menengah</div>
+            <div className="text-lg font-black text-slate-800">{totalCount - educationStats.collegeCount} Kader</div>
+            <p className="text-[10px] text-slate-500 font-medium">{100 - educationStats.collegePercent}% SMA/SMK/Lainnya</p>
           </div>
+
+          <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-200 space-y-1">
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Klaster Terbanyak</div>
+            <div className="text-xs font-bold text-slate-900 truncate">
+              {educationStats.clusterDistribution[0]?.name || 'Belum Terdata'}
+            </div>
+            <p className="text-[10px] text-amber-600 font-semibold">
+              {educationStats.clusterDistribution[0]?.Jumlah || 0} Kader
+            </p>
+          </div>
+
+          <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-200 space-y-1">
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Jurusan Terpopuler</div>
+            <div className="text-xs font-bold text-slate-900 truncate">
+              {educationStats.topMajors[0]?.name || 'Belum Terdata'}
+            </div>
+            <p className="text-[10px] text-emerald-600 font-semibold">
+              {educationStats.topMajors[0]?.count || 0} Kader
+            </p>
+          </div>
+        </div>
+
+        {/* 3 Main Charts in Education Analytics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Chart 1: Jenjang Pendidikan Terakhir */}
+          <div className="bg-slate-50/80 rounded-xl p-3.5 border border-slate-200 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
+                  <BookOpen className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Jenjang Pendidikan Terakhir</span>
+                </h3>
+                <span className="text-[10px] text-slate-400 font-medium">Kualifikasi</span>
+              </div>
+
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={educationStats.levelDistribution} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
+                    <XAxis type="number" stroke="#64748b" fontSize={10} tickLine={false} allowDecimals={false} />
+                    <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={10} tickLine={false} width={65} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', color: '#1e293b', fontSize: '11px' }}
+                    />
+                    <Bar dataKey="Jumlah" fill="#3B82F6" radius={[0, 6, 6, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-500 mt-2 font-medium border-t border-slate-200 pt-1.5">
+              📊 Mayoritas kualifikasi akademik: <span className="font-bold text-slate-700">{educationStats.levelDistribution[0]?.name || '-'}</span>
+            </p>
+          </div>
+
+          {/* Chart 2: Top Program Studi / Jurusan */}
+          <div className="bg-slate-50/80 rounded-xl p-3.5 border border-slate-200 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
+                  <GraduationCap className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Top Jurusan / Program Studi</span>
+                </h3>
+                <span className="text-[10px] text-slate-400 font-medium">Peringkat</span>
+              </div>
+
+              {educationStats.topMajors.length === 0 ? (
+                <div className="py-14 text-center text-xs text-slate-400 font-medium">
+                  Belum ada data jurusan yang diisi oleh anggota.
+                </div>
+              ) : (
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={educationStats.topMajors} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
+                      <XAxis type="number" stroke="#64748b" fontSize={10} tickLine={false} allowDecimals={false} />
+                      <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={10} tickLine={false} width={80} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', color: '#1e293b', fontSize: '11px' }}
+                      />
+                      <Bar dataKey="count" fill="#10B981" radius={[0, 6, 6, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+            <p className="text-[10px] text-slate-500 mt-2 font-medium border-t border-slate-200 pt-1.5">
+              🎓 Jurusan terbanyak: <span className="font-bold text-emerald-700">{educationStats.topMajors[0]?.name || '-'}</span>
+            </p>
+          </div>
+
+          {/* Chart 3: Rumpun & Klaster Keilmuan */}
+          <div className="bg-slate-50/80 rounded-xl p-3.5 border border-slate-200 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
+                  <Target className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Rumpun Klaster Keilmuan</span>
+                </h3>
+                <span className="text-[10px] text-purple-600 font-bold bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+                  Kompetensi
+                </span>
+              </div>
+
+              {educationStats.clusterDistribution.length === 0 ? (
+                <div className="py-14 text-center text-xs text-slate-400 font-medium">
+                  Belum ada klasifikasi klaster keilmuan.
+                </div>
+              ) : (
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                  {educationStats.clusterDistribution.map((c, idx) => {
+                    const pct = totalCount > 0 ? Math.round((c.Jumlah / totalCount) * 100) : 0;
+                    return (
+                      <div key={c.name} className="p-2 bg-white rounded-lg border border-slate-200/80">
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="font-bold text-slate-800 text-[11px] truncate flex items-center gap-1">
+                            <span className="text-[10px] text-purple-600 font-extrabold">#{idx + 1}</span>
+                            <span>{c.name}</span>
+                          </span>
+                          <span className="text-[10px] font-bold text-purple-700 shrink-0">
+                            {c.Jumlah} Kader ({pct}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                          <div
+                            className="bg-purple-600 h-full rounded-full transition-all"
+                            style={{ width: `${Math.min(pct * 2, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <p className="text-[10px] text-slate-400 mt-2 font-medium border-t border-slate-200 pt-1.5">
+              💡 Strategis untuk penugasan tim komisi, dakwah, media, & kewirausahaan.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ROW 4B: AKTIVITAS & PROFESI UTAMA ANGGOTA */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
+            <Briefcase className="w-3.5 h-3.5 text-[#F27D26]" />
+            <span>Aktivitas & Profesi Utama Anggota</span>
+          </h3>
+          <span className="text-[10px] text-slate-400 font-medium">Potensi Karir & Keseharian</span>
+        </div>
+
+        <div className="h-52">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={activityDistribution} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} />
+              <YAxis stroke="#64748b" fontSize={11} tickLine={false} allowDecimals={false} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', color: '#1e293b', fontSize: '11px' }}
+              />
+              <Bar dataKey="Jumlah" fill="#F27D26" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
 

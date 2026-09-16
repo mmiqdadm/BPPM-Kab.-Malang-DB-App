@@ -1,5 +1,6 @@
 import {
   Member,
+  JenisKelaminType,
   OrganisasiType,
   PendidikanType,
   PembinaanType,
@@ -7,6 +8,8 @@ import {
   EventItem,
   EventAttendance,
 } from '../types';
+
+export const JENIS_KELAMIN_LIST: JenisKelaminType[] = ['Pria', 'Wanita', '-'];
 
 export const KECAMATAN_MALANG = [
   'Ampelgading',
@@ -136,6 +139,7 @@ export const INITIAL_SEED_MEMBERS: Member[] = [
   {
     id: 'pks-yd-001',
     nama: 'Ahmad Fauzi Ramadhan',
+    jenisKelamin: 'Pria',
     nomorHp: '081234567890',
     organisasiInternal: ['PKS Muda', 'GK'],
     tglLahir: '2001-05-14',
@@ -160,6 +164,7 @@ export const INITIAL_SEED_MEMBERS: Member[] = [
   {
     id: 'pks-yd-002',
     nama: 'Siti Nurhaliza',
+    jenisKelamin: 'Wanita',
     nomorHp: '082198765432',
     organisasiInternal: ['Kepemudaan', 'PKS Muda'],
     tglLahir: '2003-09-22',
@@ -183,6 +188,7 @@ export const INITIAL_SEED_MEMBERS: Member[] = [
   {
     id: 'pks-yd-003',
     nama: 'Bagas Aditya Pratama',
+    jenisKelamin: 'Pria',
     nomorHp: '085712349876',
     organisasiInternal: ['Gema'],
     tglLahir: '1999-11-03',
@@ -207,6 +213,7 @@ export const INITIAL_SEED_MEMBERS: Member[] = [
   {
     id: 'pks-yd-004',
     nama: 'Rizky Dwi Kurniawan',
+    jenisKelamin: 'Pria',
     nomorHp: '083811223344',
     organisasiInternal: ['GK', 'Gema'],
     tglLahir: '2005-02-18',
@@ -230,6 +237,7 @@ export const INITIAL_SEED_MEMBERS: Member[] = [
   {
     id: 'pks-yd-005',
     nama: 'Dewi Anjani',
+    jenisKelamin: 'Wanita',
     nomorHp: '081399887766',
     organisasiInternal: ['Kepemudaan'],
     tglLahir: '1998-07-30',
@@ -253,6 +261,7 @@ export const INITIAL_SEED_MEMBERS: Member[] = [
   {
     id: 'pks-yd-006',
     nama: 'M. Rizqi Hidayatullah',
+    jenisKelamin: 'Pria',
     nomorHp: '089677889900',
     organisasiInternal: ['PKS Muda', 'GK', 'Gema'],
     tglLahir: '2002-12-05',

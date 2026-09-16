@@ -1,30 +1,58 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Member, FilterOptions, OrganisasiType, PembinaanType, PendidikanType, ActivityRatingLevel, EventItem, EventAttendance, JenjangPembinaanType } from '../types';
-import { calculateAge, formatWhatsAppLink, formatDateIndonesian, getActivityRating, getDapilByKecamatan } from '../lib/utils';
-import { KECAMATAN_MALANG, ORGANISASI_LIST, PENDIDIKAN_LIST, PEMBINAAN_LIST, DAPIL_MALANG, DAPIL_LIST, JENJANG_PEMBINAAN_LIST } from '../data/constants';
+import {
+  Member,
+  JenisKelaminType,
+  OrganisasiType,
+  PendidikanType,
+  PembinaanType,
+  JenjangPembinaanType,
+  EventItem,
+  EventAttendance,
+  ActivityRatingLevel,
+  FilterOptions,
+} from '../types';
+import {
+  KECAMATAN_MALANG,
+  DAPIL_MALANG,
+  DAPIL_LIST,
+  PENDIDIKAN_LIST,
+  PEMBINAAN_LIST,
+  JENJANG_PEMBINAAN_LIST,
+  ORGANISASI_LIST,
+  JENIS_KELAMIN_LIST,
+} from '../data/constants';
 import { getAllOrganizations } from '../lib/storage';
+import { calculateAge, formatDateIndonesian, formatWhatsAppLink, getActivityRating, getDapilByKecamatan } from '../lib/utils';
 import { exportMembersToExcel, exportMembersToPDF, exportSingleMemberCardPDF } from '../lib/export';
 import {
   Search,
   Filter,
   Download,
-  FileSpreadsheet,
-  FileText,
-  UserPlus,
-  Phone,
   Eye,
   Pencil,
   Trash2,
-  SlidersHorizontal,
+  Calendar,
+  Phone,
+  Mail,
+  MapPin,
+  ChevronDown,
+  ChevronUp,
   X,
+  FileSpreadsheet,
+  FileText,
+  UserPlus,
+  Sparkles,
+  Award,
+  BookOpen,
+  Briefcase,
+  Star,
   ChevronLeft,
   ChevronRight,
-  Printer,
-  Sparkles,
-  ExternalLink,
-  Star,
-  CalendarCheck,
+  ListFilter,
+  Check,
   ArrowUpDown,
+  SlidersHorizontal,
+  Printer,
 } from 'lucide-react';
 
 interface MemberListProps {
@@ -60,6 +88,7 @@ export const MemberList: React.FC<MemberListProps> = ({
     }
   }, [externalSearchTerm]);
   const [selectedOrgs, setSelectedOrgs] = useState<OrganisasiType[]>([]);
+  const [selectedJenisKelamin, setSelectedJenisKelamin] = useState<JenisKelaminType | 'Semua'>('Semua');
   const [selectedPembinaan, setSelectedPembinaan] = useState<PembinaanType | 'Semua'>('Semua');
   const [selectedJenjang, setSelectedJenjang] = useState<JenjangPembinaanType | 'Semua'>('Semua');
   const [selectedPendidikan, setSelectedPendidikan] = useState<PendidikanType | 'Semua'>('Semua');
@@ -118,6 +147,7 @@ export const MemberList: React.FC<MemberListProps> = ({
   const resetFilters = () => {
     setSearch('');
     setSelectedOrgs([]);
+    setSelectedJenisKelamin('Semua');
     setSelectedPembinaan('Semua');
     setSelectedJenjang('Semua');
     setSelectedPendidikan('Semua');
@@ -141,6 +171,7 @@ export const MemberList: React.FC<MemberListProps> = ({
           const q = search.toLowerCase();
           const matchName = m.nama.toLowerCase().includes(q);
           const matchNickname = (m.namaPanggilan || '').toLowerCase().includes(q);
+          const matchJk = (m.jenisKelamin || '').toLowerCase().includes(q);
           const matchHp = m.nomorHp.toLowerCase().includes(q);
           const matchDom = m.domisili.toLowerCase().includes(q);
           const matchEdu = m.pendidikan.toLowerCase().includes(q);
@@ -152,6 +183,7 @@ export const MemberList: React.FC<MemberListProps> = ({
           if (
             !matchName &&
             !matchNickname &&
+            !matchJk &&
             !matchHp &&
             !matchDom &&
             !matchEdu &&
@@ -169,6 +201,15 @@ export const MemberList: React.FC<MemberListProps> = ({
         if (selectedOrgs.length > 0) {
           const hasOrg = (m.organisasiInternal || []).some(o => selectedOrgs.includes(o));
           if (!hasOrg) return false;
+        }
+
+        // Jenis Kelamin filter
+        if (selectedJenisKelamin !== 'Semua') {
+          if (selectedJenisKelamin === '-') {
+            if (m.jenisKelamin && m.jenisKelamin !== '-') return false;
+          } else if (m.jenisKelamin !== selectedJenisKelamin) {
+            return false;
+          }
         }
 
         // Pembinaan filter
@@ -261,6 +302,7 @@ export const MemberList: React.FC<MemberListProps> = ({
     selectedPembinaan,
     selectedJenjang,
     selectedPendidikan,
+    selectedJenisKelamin,
     selectedKeaktifan,
     selectedAnakKader,
     selectedDapil,
@@ -282,6 +324,7 @@ export const MemberList: React.FC<MemberListProps> = ({
     selectedPembinaan,
     selectedJenjang,
     selectedPendidikan,
+    selectedJenisKelamin,
     selectedKeaktifan,
     selectedAnakKader,
     selectedDapil,
@@ -301,6 +344,7 @@ export const MemberList: React.FC<MemberListProps> = ({
 
   const activeFilterCount =
     selectedOrgs.length +
+    (selectedJenisKelamin !== 'Semua' ? 1 : 0) +
     (selectedPembinaan !== 'Semua' ? 1 : 0) +
     (selectedJenjang !== 'Semua' ? 1 : 0) +
     (selectedPendidikan !== 'Semua' ? 1 : 0) +
@@ -610,6 +654,23 @@ export const MemberList: React.FC<MemberListProps> = ({
                   <option value="bukan">Bukan Anak Kader</option>
                 </select>
               </div>
+
+              {/* 9. Jenis Kelamin */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Jenis Kelamin
+                </label>
+                <select
+                  value={selectedJenisKelamin}
+                  onChange={e => setSelectedJenisKelamin(e.target.value as any)}
+                  className="w-full bg-white text-slate-800 border border-slate-200 text-xs rounded-lg p-2 outline-none font-medium focus:border-[#F27D26]"
+                >
+                  <option value="Semua">Semua Jenis Kelamin</option>
+                  <option value="Pria">Pria</option>
+                  <option value="Wanita">Wanita</option>
+                  <option value="-">- (Belum Diisi)</option>
+                </select>
+              </div>
             </div>
           </div>
         )}
@@ -666,6 +727,17 @@ export const MemberList: React.FC<MemberListProps> = ({
                           {m.namaPanggilan && (
                             <span className="text-[10px] font-semibold text-[#F27D26] bg-orange-50 px-1.5 py-0.2 rounded border border-orange-200">
                               {m.namaPanggilan}
+                            </span>
+                          )}
+                          {m.jenisKelamin && m.jenisKelamin !== '-' && (
+                            <span
+                              className={`text-[9px] font-semibold px-1.5 py-0.2 rounded border ${
+                                m.jenisKelamin === 'Pria'
+                                  ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                  : 'bg-rose-50 text-rose-700 border-rose-200'
+                              }`}
+                            >
+                              {m.jenisKelamin}
                             </span>
                           )}
                         </div>
@@ -817,6 +889,17 @@ export const MemberList: React.FC<MemberListProps> = ({
                         {m.namaPanggilan && (
                           <span className="text-[10px] font-semibold text-[#F27D26] bg-orange-50 px-1.5 py-0.2 rounded border border-orange-200 shrink-0">
                             {m.namaPanggilan}
+                          </span>
+                        )}
+                        {m.jenisKelamin && m.jenisKelamin !== '-' && (
+                          <span
+                            className={`text-[9px] font-semibold px-1.5 py-0.2 rounded border shrink-0 ${
+                              m.jenisKelamin === 'Pria'
+                                ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                : 'bg-rose-50 text-rose-700 border-rose-200'
+                            }`}
+                          >
+                            {m.jenisKelamin}
                           </span>
                         )}
                       </h4>

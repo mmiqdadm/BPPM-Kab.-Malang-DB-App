@@ -430,9 +430,22 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
                                       <span>Kec. {m.domisili}</span>
                                     </span>
                                   </div>
-                                  <span className="text-[10px] bg-slate-200 text-slate-700 font-bold px-1.5 py-0.5 rounded">
-                                    {m.pendidikan}
-                                  </span>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <span className="text-[10px] bg-slate-200 text-slate-700 font-bold px-1.5 py-0.5 rounded">
+                                      {m.pendidikan}
+                                    </span>
+                                    {m.jenisKelamin && m.jenisKelamin !== '-' && (
+                                      <span
+                                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                                          m.jenisKelamin === 'Pria'
+                                            ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                            : 'bg-rose-50 text-rose-700 border-rose-200'
+                                        }`}
+                                      >
+                                        {m.jenisKelamin}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
 
                                 <div className="text-[11px] text-slate-600 flex flex-wrap gap-1">

@@ -1,5 +1,7 @@
 export type OrganisasiType = string;
 
+export type JenisKelaminType = 'Pria' | 'Wanita' | '-';
+
 export type PendidikanType = 'TK' | 'SD' | 'SMP' | 'SMA' | 'Diploma' | 'S1' | 'S2' | 'S3' | 'lain-lain';
 
 export type PembinaanType = 'Sudah' | 'Belum Pernah' | 'Pernah, tapi sedang tidak';
@@ -19,6 +21,7 @@ export interface Member {
   id: string;
   nama: string; // Mandatory
   namaPanggilan?: string; // Optional / Nickname
+  jenisKelamin?: JenisKelaminType; // 'Pria' | 'Wanita' | '-' (Opsional)
   isAnakKader?: boolean; // Anak / Keluarga Kader PKS
   nomorHp: string;
   organisasiInternal: OrganisasiType[]; // Checklist multi-select
@@ -92,6 +95,7 @@ export interface ActivityLog {
 export interface FilterOptions {
   search: string;
   organisasi: OrganisasiType[];
+  jenisKelamin?: JenisKelaminType | 'Semua';
   pembinaan: PembinaanType | 'Semua';
   jenjangPembinaan?: JenjangPembinaanType | 'Semua';
   pendidikan: PendidikanType | 'Semua';

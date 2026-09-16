@@ -12,6 +12,7 @@ export function exportMembersToExcel(members: Member[], filenamePrefix = 'Databa
       No: index + 1,
       'Nama Lengkap': m.nama,
       'Nama Panggilan': m.namaPanggilan || '-',
+      'Jenis Kelamin': m.jenisKelamin || '-',
       'Anak Kader': m.isAnakKader ? 'Ya' : 'Bukan',
       'Nomor HP / WA': m.nomorHp || '-',
       'Organisasi Internal': (m.organisasiInternal || []).join(', ') || '-',
@@ -45,6 +46,9 @@ export function exportMembersToExcel(members: Member[], filenamePrefix = 'Databa
   const colWidths = [
     { wch: 5 },  // No
     { wch: 25 }, // Nama
+    { wch: 16 }, // Panggilan
+    { wch: 14 }, // Jenis Kelamin
+    { wch: 12 }, // Anak Kader
     { wch: 16 }, // HP
     { wch: 20 }, // Org
     { wch: 18 }, // Tgl Lahir
@@ -113,6 +117,7 @@ export function exportMembersToPDF(members: Member[], reportTitle = 'LAPORAN DAT
     return [
       (idx + 1).toString(),
       m.nama,
+      m.jenisKelamin || '-',
       m.nomorHp || '-',
       (m.organisasiInternal || []).join(', '),
       age > 0 ? `${age} th` : '-',
@@ -127,7 +132,7 @@ export function exportMembersToPDF(members: Member[], reportTitle = 'LAPORAN DAT
 
   autoTable(doc, {
     startY: 36,
-    head: [['No', 'Nama Lengkap', 'No HP/WA', 'Organisasi', 'Usia', 'Dapil', 'Domisili', 'Pendidikan', 'Pembinaan', 'Keahlian Utama', 'Hobi']],
+    head: [['No', 'Nama Lengkap', 'JK', 'No HP/WA', 'Organisasi', 'Usia', 'Dapil', 'Domisili', 'Pendidikan', 'Pembinaan', 'Keahlian Utama', 'Hobi']],
     body: tableBody,
     theme: 'grid',
     headStyles: {
@@ -144,17 +149,18 @@ export function exportMembersToPDF(members: Member[], reportTitle = 'LAPORAN DAT
       fillColor: [248, 250, 252],
     },
     columnStyles: {
-      0: { cellWidth: 8, halign: 'center' },
-      1: { cellWidth: 38 },
-      2: { cellWidth: 26 },
-      3: { cellWidth: 24 },
-      4: { cellWidth: 14, halign: 'center' },
-      5: { cellWidth: 18 },
-      6: { cellWidth: 24 },
-      7: { cellWidth: 18 },
-      8: { cellWidth: 32 },
-      9: { cellWidth: 34 },
-      10: { cellWidth: 28 },
+      0: { cellWidth: 7, halign: 'center' },
+      1: { cellWidth: 35 },
+      2: { cellWidth: 14, halign: 'center' },
+      3: { cellWidth: 25 },
+      4: { cellWidth: 22 },
+      5: { cellWidth: 14, halign: 'center' },
+      6: { cellWidth: 17 },
+      7: { cellWidth: 22 },
+      8: { cellWidth: 17 },
+      9: { cellWidth: 30 },
+      10: { cellWidth: 32 },
+      11: { cellWidth: 26 },
     },
     margin: { left: 14, right: 14 },
   });
@@ -199,7 +205,7 @@ export function exportSingleMemberCardPDF(m: Member): void {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.setTextColor(100, 116, 139);
-  doc.text(`Domisili: Kec. ${m.domisili || '-'} (${dapil}) | Usia: ${age > 0 ? age + ' Tahun' : '-'}`, 20, 50);
+  doc.text(`Domisili: Kec. ${m.domisili || '-'} (${dapil}) | JK: ${m.jenisKelamin || '-'} | Usia: ${age > 0 ? age + ' Tahun' : '-'}`, 20, 50);
   doc.text(`Organisasi Internal: ${(m.organisasiInternal || []).join(', ') || '-'}`, 20, 56);
 
   // Details Table
@@ -207,6 +213,7 @@ export function exportSingleMemberCardPDF(m: Member): void {
     startY: 68,
     head: [['Bidang Informasi', 'Detail Keterangan']],
     body: [
+      ['Jenis Kelamin', m.jenisKelamin || '-'],
       ['Nomor HP / WhatsApp', m.nomorHp || '-'],
       ['Email', m.email || '-'],
       ['Tanggal Lahir', m.tglLahir ? formatDateIndonesian(m.tglLahir) : '-'],

@@ -34,9 +34,11 @@ async function startServer() {
       const membersCompact = (membersContext || []).map((m: any) => ({
         id: m.id,
         n: m.nama,
+        jk: m.jenisKelamin || '-',
         hp: m.nomorHp || '',
         dom: m.domisili,
         edu: m.pendidikan + (m.jurusan ? ` ${m.jurusan}` : ''),
+        jur: m.jurusan || '',
         org: (m.organisasiInternal || []).join(','),
         akt: m.aktivitas,
         kh: (m.keahlian || []).join(','),
@@ -45,12 +47,12 @@ async function startServer() {
       }));
 
       const systemInstruction = `Anda adalah Asisten AI Analitis khusus untuk Database Anggota Kepemudaan PKS Kabupaten Malang.
-Tugas Anda adalah membantu pengurus/admin menganalisis data anggota, mencari anggota dengan keahlian/hobi tertentu, melihat persebaran wilayah/pendidikan, serta memberikan ringkasan statistik yang akurat dan bermanfaat.
+Tugas Anda adalah membantu pengurus/admin menganalisis data anggota, mencari anggota dengan keahlian/hobi/pendidikan/jurusan/jenis kelamin tertentu, melihat persebaran wilayah/pendidikan, serta memberikan ringkasan statistik yang akurat dan bermanfaat.
 
 Panduan Jawaban:
 1. Jawab dalam Bahasa Indonesia yang ramah, sopan, dan profesional.
 2. Manfaatkan data ringkas anggota yang diberikan di bawah ini.
-3. Saat menyebutkan nama anggota yang sesuai kriteria, sebutkan Nama Lengkap (n), Domisili (dom), Organisasi (org), Nomor HP (hp), serta Keahlian (kh) / Hobi (hb).
+3. Saat menyebutkan nama anggota yang sesuai kriteria, sebutkan Nama Lengkap (n), Jenis Kelamin (jk), Domisili (dom), Organisasi (org), Nomor HP (hp), serta Keahlian (kh) / Hobi (hb).
 4. Gunakan format Markdown yang rapi (**bold**, poin-poin bullet).
 5. Jika hasil pencarian menemukan anggota tertentu, sertakan ringkasan jumlahnya di awal jawaban.
 

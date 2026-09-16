@@ -148,6 +148,18 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                     </span>
                   )}
 
+                  {member.jenisKelamin && member.jenisKelamin !== '-' && (
+                    <span
+                      className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+                        member.jenisKelamin === 'Pria'
+                          ? 'bg-sky-50 text-sky-700 border-sky-200'
+                          : 'bg-rose-50 text-rose-700 border-rose-200'
+                      }`}
+                    >
+                      {member.jenisKelamin}
+                    </span>
+                  )}
+
                   {/* Rating Keaktifan Badge */}
                   <span
                     className={`text-xs font-bold px-2.5 py-0.5 rounded-full border flex items-center space-x-1 ${activityRating.badgeClass}`}
@@ -288,6 +300,12 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                   <span className="text-slate-500">Tanggal Lahir:</span>
                   <span className="font-semibold text-slate-900">
                     {member.tglLahir ? formatDateIndonesian(member.tglLahir) : '-'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Jenis Kelamin:</span>
+                  <span className="font-semibold text-slate-900">
+                    {member.jenisKelamin && member.jenisKelamin !== '-' ? member.jenisKelamin : '-'}
                   </span>
                 </div>
                 <div className="flex justify-between">

@@ -11,6 +11,11 @@
           "maxLength": 150,
           "description": "Nama lengkap anggota"
         },
+        "jenisKelamin": {
+          "type": "string",
+          "enum": ["Pria", "Wanita", "-"],
+          "description": "Jenis kelamin anggota (Pria / Wanita / -)"
+        },
         "nomorHp": {
           "type": "string",
           "maxLength": 30,

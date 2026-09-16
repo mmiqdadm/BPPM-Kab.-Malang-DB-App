@@ -1,8 +1,9 @@
-import { Member, PendidikanType, PembinaanType, JenjangPembinaanType } from '../types';
+import { Member, JenisKelaminType, PendidikanType, PembinaanType, JenjangPembinaanType } from '../types';
 import { KECAMATAN_MALANG } from '../data/constants';
 
 export const WA_FORM_TEMPLATE = `Nama Lengkap : 
 Nama Panggilan : 
+Jenis Kelamin (Pria/Wanita) : 
 No. HP (WA) : 
 Email : 
 Tgl Lahir : dd/mm/yyyy
@@ -203,6 +204,53 @@ function parseListItems(raw: string): string[] {
     .filter(s => s.length > 0);
 }
 
+/**
+ * Parse Jenis Kelamin secara fleksibel:
+ * - "laki-laki", "laki", "pria", "ikhwan", "male", "cowok", "l", "m" => 'Pria'
+ * - "perempuan", "wanita", "akhwat", "female", "cewek", "p", "w", "f" => 'Wanita'
+ * - Jika aneh / tidak dikenal / kosong / "-" => '-'
+ */
+export function parseJenisKelaminFlexible(raw: string | undefined | null): JenisKelaminType {
+  const cleaned = cleanValue(raw || '');
+  if (!cleaned) return '-';
+  const lower = cleaned.toLowerCase().trim();
+
+  // Pola Pria
+  if (
+    lower === 'pria' ||
+    lower === 'l' ||
+    lower === 'm' ||
+    lower.includes('laki') ||
+    lower.includes('ikhwan') ||
+    lower.includes('ikwan') ||
+    lower.includes('male') ||
+    lower.includes('cowok') ||
+    lower.includes('cowo')
+  ) {
+    return 'Pria';
+  }
+
+  // Pola Wanita
+  if (
+    lower === 'wanita' ||
+    lower === 'perempuan' ||
+    lower === 'p' ||
+    lower === 'w' ||
+    lower === 'f' ||
+    lower.includes('perempuan') ||
+    lower.includes('wanita') ||
+    lower.includes('akhwat') ||
+    lower.includes('akwat') ||
+    lower.includes('female') ||
+    lower.includes('cewek') ||
+    lower.includes('cewe')
+  ) {
+    return 'Wanita';
+  }
+
+  return '-';
+}
+
 export interface ParsedWAMember extends Omit<Member, 'id' | 'createdAt' | 'updatedAt'> {
   detectedFieldsCount: number;
   rawPastedText: string;
@@ -216,6 +264,7 @@ export function parseWhatsAppFormText(text: string): ParsedWAMember {
     return {
       nama: '',
       namaPanggilan: '',
+      jenisKelamin: '-',
       isAnakKader: false,
       nomorHp: '',
       organisasiInternal: ['Belum'],
@@ -249,6 +298,7 @@ export function parseWhatsAppFormText(text: string): ParsedWAMember {
     { key: 'nama_lengkap', regex: /^[*_~#\s\d.)-]*nama\s+lengkap\s*[*_~]*\s*[:=\-]\s*[*_~]*/i },
     { key: 'nama_panggilan', regex: /^[*_~#\s\d.)-]*nama\s+panggilan\s*[*_~]*\s*[:=\-]\s*[*_~]*/i },
     { key: 'nama', regex: /^[*_~#\s\d.)-]*nama\s*[*_~]*\s*[:=\-]\s*[*_~]*/i },
+    { key: 'jenis_kelamin', regex: /^[*_~#\s\d.)-]*(?:jenis\s*kelamin|gender|kelamin|jk|sex)\s*[*_~]*\s*[:=\-]\s*[*_~]*/i },
     { key: 'nomor_hp', regex: /^[*_~#\s\d.)-]*(?:no\.?\s*hp|nomor\s*hp|wa|whatsapp|no\.?\s*wa|telepon|handphone|telp)\s*(?:\(wa\)|\(whatsapp\))?\s*[*_~]*\s*[:=\-]\s*[*_~]*/i },
     { key: 'tgl_lahir', regex: /^[*_~#\s\d.)-]*(?:tgl\.?\s*lahir|tanggal\s*lahir|ttl|tgl\s*lahir)\s*(?:\(dd\/mm\/yyyy\)|\(dd-mm-yyyy\))?\s*[*_~]*\s*[:=\-]\s*[*_~]*/i },
     { key: 'alamat', regex: /^[*_~#\s\d.)-]*(?:alamat\s*lengkap|alamat|domisili|tempat\s*tinggal|lokasi)\s*[*_~]*\s*[:=\-]\s*[*_~]*/i },
@@ -307,6 +357,7 @@ export function parseWhatsAppFormText(text: string): ParsedWAMember {
   // Extract individual fields
   const rawNamaLengkap = kvMap['nama_lengkap'] || kvMap['nama'] || '';
   const rawNamaPanggilan = kvMap['nama_panggilan'] || '';
+  const rawJenisKelamin = kvMap['jenis_kelamin'] || '';
   const rawNomorHp = kvMap['nomor_hp'] || '';
   const rawTglLahir = kvMap['tgl_lahir'] || '';
   const rawAlamat = kvMap['alamat'] || '';
@@ -327,6 +378,7 @@ export function parseWhatsAppFormText(text: string): ParsedWAMember {
   // Clean values
   const nama = cleanValue(rawNamaLengkap);
   const namaPanggilan = cleanValue(rawNamaPanggilan) || undefined;
+  const jenisKelamin = parseJenisKelaminFlexible(rawJenisKelamin);
   const nomorHp = normalizePhoneNumber(rawNomorHp);
   const tglLahir = parseDateFlexible(rawTglLahir);
   const alamatDetail = cleanValue(rawAlamat);
@@ -383,6 +435,7 @@ export function parseWhatsAppFormText(text: string): ParsedWAMember {
   let detectedFieldsCount = 0;
   if (nama) detectedFieldsCount++;
   if (namaPanggilan) detectedFieldsCount++;
+  if (jenisKelamin !== '-') detectedFieldsCount++;
   if (nomorHp) detectedFieldsCount++;
   if (cleanValue(rawEmail)) detectedFieldsCount++;
   if (rawTglLahir && cleanValue(rawTglLahir)) detectedFieldsCount++;
@@ -398,6 +451,7 @@ export function parseWhatsAppFormText(text: string): ParsedWAMember {
   return {
     nama,
     namaPanggilan,
+    jenisKelamin,
     isAnakKader: false,
     nomorHp,
     organisasiInternal,
