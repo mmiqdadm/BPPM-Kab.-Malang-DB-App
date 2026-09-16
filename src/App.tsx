@@ -200,13 +200,14 @@ export default function App() {
         });
         showToast('Anggota baru berhasil ditambahkan.');
       }
-    } catch (err) {
-      console.error('Error saving member:', err);
-      showToast('Gagal menyimpan data anggota.', 'info');
-    } finally {
       setMembers(loadMembersFromLocal());
       setIsFormOpen(false);
       setEditingMember(null);
+    } catch (err: any) {
+      console.error('Error saving member:', err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      showToast(`Gagal menyimpan data anggota: ${errMsg}`, 'info');
+      throw err;
     }
   };
 
@@ -506,10 +507,10 @@ export default function App() {
       {/* Footer */}
       <footer className="border-t border-slate-200 bg-white py-5 text-center text-xs text-slate-500 font-medium">
         <p>
-          © 2026 BPPM PKS Kab.Malang.
+          © 2026 Kepemudaan PKS Kab. Malang.
         </p>
         <p className="text-[11px] text-slate-400 mt-1">
-          Aplikasi Database & Analitik BPPM
+          Aplikasi Database & Analitik Kepemudaan
         </p>
       </footer>
 

@@ -112,7 +112,7 @@ export const SUGGESTED_HOBBIES = [
   'Berkebun',
 ];
 
-export const ORGANISASI_LIST: OrganisasiType[] = ['BPPM', 'GK', 'PKS Muda', 'Gema', 'Ngopi', 'Belum'];
+export const ORGANISASI_LIST: OrganisasiType[] = ['Kepemudaan', 'GK', 'PKS Muda', 'Gema', 'Ngopi', 'Belum'];
 
 export const PENDIDIKAN_LIST: PendidikanType[] = [
   'TK',
@@ -161,7 +161,7 @@ export const INITIAL_SEED_MEMBERS: Member[] = [
     id: 'pks-yd-002',
     nama: 'Siti Nurhaliza',
     nomorHp: '082198765432',
-    organisasiInternal: ['BPPM', 'PKS Muda'],
+    organisasiInternal: ['Kepemudaan', 'PKS Muda'],
     tglLahir: '2003-09-22',
     sosmed: {
       instagram: '@sitinur_mlg',
@@ -231,7 +231,7 @@ export const INITIAL_SEED_MEMBERS: Member[] = [
     id: 'pks-yd-005',
     nama: 'Dewi Anjani',
     nomorHp: '081399887766',
-    organisasiInternal: ['BPPM'],
+    organisasiInternal: ['Kepemudaan'],
     tglLahir: '1998-07-30',
     sosmed: {
       instagram: '@dewi.anjani_mlg',
@@ -275,68 +275,7 @@ export const INITIAL_SEED_MEMBERS: Member[] = [
   },
 ];
 
-export const INITIAL_SEED_EVENTS: EventItem[] = [
-  {
-    id: 'event-001',
-    namaEvent: 'Kopi Darat & Sarasehan Pemuda Malang',
-    waktu: '2026-02-20T19:00',
-    lokasi: 'Dapur Kafe Ngenep, Karangploso',
-    organisasiHandling: 'Ngopi',
-    deskripsi: 'Pertemuan santai pemuda Malang untuk mendiskusikan gagasan karya dan kewirausahaan.',
-    createdAt: '2026-02-15T10:00:00.000Z',
-    createdBy: 'AdminSuper',
-  },
-  {
-    id: 'event-002',
-    namaEvent: 'Pelatihan Videografi & Content Creator Digital',
-    waktu: '2026-03-01T09:00',
-    lokasi: 'Aula Gedung PKS Kepanjen',
-    organisasiHandling: 'GK',
-    deskripsi: 'Workshop praktis pembuatan konten video kreatif untuk media sosial kepemudaan.',
-    createdAt: '2026-02-25T11:00:00.000Z',
-    createdBy: 'AdminSuper',
-  },
-];
+export const INITIAL_SEED_EVENTS: EventItem[] = [];
 
-export const INITIAL_SEED_ATTENDANCES: EventAttendance[] = [
-  {
-    id: 'att-001',
-    eventId: 'event-001',
-    memberId: 'pks-yd-001',
-    namaPeserta: 'Ahmad Fauzi Ramadhan',
-    nomorHp: '081234567890',
-    domisili: 'Kepanjen',
-    sosmed: '@fauzir_mlg',
-    waktuPresensi: '2026-02-20T19:15:00.000Z',
-  },
-  {
-    id: 'att-002',
-    eventId: 'event-001',
-    memberId: 'pks-yd-003',
-    namaPeserta: 'Bagas Aditya Pratama',
-    nomorHp: '085712349876',
-    domisili: 'Karangploso',
-    sosmed: '@bagas_aditya',
-    waktuPresensi: '2026-02-20T19:20:00.000Z',
-  },
-  {
-    id: 'att-003',
-    eventId: 'event-002',
-    memberId: 'pks-yd-001',
-    namaPeserta: 'Ahmad Fauzi Ramadhan',
-    nomorHp: '081234567890',
-    domisili: 'Kepanjen',
-    sosmed: '@fauzir_mlg',
-    waktuPresensi: '2026-03-01T09:05:00.000Z',
-  },
-  {
-    id: 'att-004',
-    eventId: 'event-002',
-    memberId: 'pks-yd-004',
-    namaPeserta: 'Rizky Dwi Kurniawan',
-    nomorHp: '083811223344',
-    domisili: 'Turen',
-    sosmed: '@rizkydwi_k',
-    waktuPresensi: '2026-03-01T09:12:00.000Z',
-  },
-];
+export const INITIAL_SEED_ATTENDANCES: EventAttendance[] = [];
+

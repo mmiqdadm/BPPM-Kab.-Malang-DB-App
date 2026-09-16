@@ -15,7 +15,7 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ onInstall, o
           <Smartphone className="w-5 h-5 text-[#F27D26]" />
         </div>
         <div>
-          <h4 className="text-xs font-bold leading-tight text-slate-900">Install Aplikasi BPPM PKS</h4>
+          <h4 className="text-xs font-bold leading-tight text-slate-900">Install Aplikasi Kepemudaan PKS</h4>
           <p className="text-[11px] text-slate-500 font-medium mt-0.5">
             Tambahkan ke Layar Utama HP untuk akses cepat & lancar layaknya aplikasi Android/iOS.
           </p>

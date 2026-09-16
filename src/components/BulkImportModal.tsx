@@ -18,6 +18,7 @@ import {
   User,
   Phone,
   MapPin,
+  Mail,
   GraduationCap,
   Briefcase,
   Award,
@@ -253,7 +254,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
     const sampleRow2 = [
       'Dewi Saraswati',
       '082198765432',
-      'BPPM',
+      'Kepemudaan',
       '2004-03-25',
       'dewi.saras@yahoo.com',
       'Singosari',
@@ -339,7 +340,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
     const validOrgs: OrganisasiType[] = [];
     rawOrgs.forEach(o => {
       const upper = o.toUpperCase();
-      if (upper.includes('BPPM')) validOrgs.push('BPPM');
+      if (upper.includes('KEPEMUDAAN') || upper.includes('BPPM')) validOrgs.push('Kepemudaan');
       else if (upper.includes('GK') || upper.includes('GARUDA')) validOrgs.push('GK');
       else if (upper.includes('PKS') || upper.includes('MUDA')) validOrgs.push('PKS Muda');
       else if (upper.includes('GEMA')) validOrgs.push('Gema');
@@ -931,7 +932,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
                         if (parseErrors.length > 0) setParseErrors([]);
                       }}
                       rows={7}
-                      placeholder={`Nama Lengkap : Ahmad Fauzi Pratama\nNama Panggilan : Fauzi\nNo. HP (WA) : 081234567890\nEmail : fauzi.pratama@gmail.com\nTgl Lahir : 14/05/2001\nAlamat lengkap : Jl. Penarukan No. 12, RT 02/03, Kepanjen, Malang\nPendidikan Terakhir/saat ini : S1\nJurusan : Informatika\nAktivitas Utama : Freelance Web Designer\nKeahlian : Desain Grafis, Web Development, Public Speaking\nHobi : Sepakbola, Membaca Buku\nInstagram : @fauzi_pratama\nTiktok : @fauzipro`}
+                      placeholder={`Nama Lengkap : Ahmad Fauzi Pratama\nNama Panggilan : Fauzi\nNo. HP (WA) : 081234567890\nEmail : fauzi.pratama@gmail.com\nTgl Lahir : 14/05/2001\nAlamat lengkap : Jl. Penarukan No. 12, RT 02/03, Kepanjen, Malang\nPendidikan Terakhir/saat ini : S1\nJurusan : Informatika\nAktivitas / Pekerjaan : Freelance Web Designer\nKeahlian (bisa lebih dari 1) : Desain Grafis, Web Development, Public Speaking\nHobi (bisa lebih dari 1) : Sepakbola, Membaca Buku\nInstagram : @fauzi_pratama\nTiktok : @fauzipro`}
                       className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs font-mono rounded-xl p-3.5 outline-none focus:border-[#F27D26] focus:bg-white resize-none leading-relaxed font-medium"
                     />
                   </div>
@@ -1107,7 +1108,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
                     value={pastedText}
                     onChange={e => setPastedText(e.target.value)}
                     rows={6}
-                    placeholder={`Tempelkan baris data CSV/Tab di sini:\n\nAhmad Fauzi, 081234567890, PKS Muda, 2001-05-14, fauzi@gmail.com, Kepanjen, Jl. Penarukan, Freelance, S1, Informatika, Design Grafis, Sepakbola, Sudah, Aktif dapil 1\nSiti Nurhaliza, 082198765432, BPPM, 2003-09-22, sitinur@gmail.com, Singosari, Jl. Tumapel, Mahasiswi, S1, Inggris, Public Speaking, Membaca, Sudah, Fasilitator`}
+                    placeholder={`Tempelkan baris data CSV/Tab di sini:\n\nAhmad Fauzi, 081234567890, PKS Muda, 2001-05-14, fauzi@gmail.com, Kepanjen, Jl. Penarukan, Freelance, S1, Informatika, Design Grafis, Sepakbola, Sudah, Aktif dapil 1\nSiti Nurhaliza, 082198765432, Kepemudaan, 2003-09-22, sitinur@gmail.com, Singosari, Jl. Tumapel, Mahasiswi, S1, Inggris, Public Speaking, Membaca, Sudah, Fasilitator`}
                     className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs font-mono rounded-xl p-3.5 outline-none focus:border-[#F27D26] focus:bg-white resize-none leading-relaxed font-medium"
                   />
                   <button

@@ -44,7 +44,7 @@ async function startServer() {
         pb: m.pembinaan,
       }));
 
-      const systemInstruction = `Anda adalah Asisten AI Analitis khusus untuk Database Anggota BPPM PKS Kabupaten Malang.
+      const systemInstruction = `Anda adalah Asisten AI Analitis khusus untuk Database Anggota Kepemudaan PKS Kabupaten Malang.
 Tugas Anda adalah membantu pengurus/admin menganalisis data anggota, mencari anggota dengan keahlian/hobi tertentu, melihat persebaran wilayah/pendidikan, serta memberikan ringkasan statistik yang akurat dan bermanfaat.
 
 Panduan Jawaban:

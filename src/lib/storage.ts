@@ -8,6 +8,7 @@ import {
   updateDoc,
   deleteDoc,
   getDocs,
+  getDoc,
   onSnapshot,
   writeBatch,
   arrayUnion,
@@ -52,6 +53,21 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   console.error('Firestore Error: ', JSON.stringify(errInfo));
 }
 
+export function sanitizeFirestoreData<T extends Record<string, any>>(obj: T): T {
+  const clean: any = {};
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (val !== undefined) {
+      if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
+        clean[key] = sanitizeFirestoreData(val);
+      } else {
+        clean[key] = val;
+      }
+    }
+  }
+  return clean;
+}
+
 // Local storage management
 export function loadMembersFromLocal(): Member[] {
   try {
@@ -61,7 +77,21 @@ export function loadMembersFromLocal(): Member[] {
       return INITIAL_SEED_MEMBERS;
     }
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : INITIAL_SEED_MEMBERS;
+    if (Array.isArray(parsed)) {
+      return parsed.map(m => {
+        if (m && Array.isArray(m.organisasiInternal)) {
+          m.organisasiInternal = Array.from(
+            new Set(
+              m.organisasiInternal.map((o: string) =>
+                typeof o === 'string' && o.toUpperCase().includes('BPPM') ? 'Kepemudaan' : o
+              )
+            )
+          );
+        }
+        return m;
+      });
+    }
+    return INITIAL_SEED_MEMBERS;
   } catch (err) {
     console.error('Error loading local members:', err);
     return INITIAL_SEED_MEMBERS;
@@ -70,7 +100,19 @@ export function loadMembersFromLocal(): Member[] {
 
 export function saveMembersToLocal(members: Member[], notify: boolean = true): void {
   try {
-    localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(members));
+    const sanitized = members.map(m => {
+      if (m && Array.isArray(m.organisasiInternal)) {
+        m.organisasiInternal = Array.from(
+          new Set(
+            m.organisasiInternal.map((o: string) =>
+              typeof o === 'string' && o.toUpperCase().includes('BPPM') ? 'Kepemudaan' : o
+            )
+          )
+        );
+      }
+      return m;
+    });
+    localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(sanitized));
     if (notify) {
       window.dispatchEvent(new Event('pks_members_updated'));
     }
@@ -87,19 +129,24 @@ export function subscribeMembersFirestore(onUpdate: (members: Member[]) => void)
     colRef,
     snapshot => {
       if (snapshot.empty) {
-        // Seed initial members to Firestore if database is empty
-        const initial = loadMembersFromLocal();
-        const batch = writeBatch(db);
-        initial.forEach(m => {
-          const ref = doc(db, 'members', m.id);
-          batch.set(ref, m);
-        });
-        batch.commit().catch(err => handleFirestoreError(err, OperationType.WRITE, 'members'));
-        onUpdate(initial);
+        saveMembersToLocal([], false);
+        onUpdate([]);
         return;
       }
 
-      const firestoreMembers: Member[] = snapshot.docs.map(docSnap => docSnap.data() as Member);
+      const firestoreMembers: Member[] = snapshot.docs.map(docSnap => {
+        const m = docSnap.data() as Member;
+        if (m && Array.isArray(m.organisasiInternal)) {
+          m.organisasiInternal = Array.from(
+            new Set(
+              m.organisasiInternal.map((o: string) =>
+                typeof o === 'string' && o.toUpperCase().includes('BPPM') ? 'Kepemudaan' : o
+              )
+            )
+          );
+        }
+        return m;
+      });
       // Sort newest created first
       firestoreMembers.sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -136,7 +183,7 @@ export function addMemberLocal(
   saveMembersToLocal(updatedList);
 
   // Sync to Firestore
-  setDoc(doc(db, 'members', id), memberObj).catch(err =>
+  setDoc(doc(db, 'members', id), sanitizeFirestoreData(memberObj)).catch(err =>
     handleFirestoreError(err, OperationType.WRITE, `members/${id}`)
   );
 
@@ -158,7 +205,7 @@ export function updateMemberLocal(id: string, updatedData: Partial<Member>): Mem
   saveMembersToLocal(currentList);
 
   // Sync to Firestore
-  setDoc(doc(db, 'members', id), updatedMember).catch(err =>
+  setDoc(doc(db, 'members', id), sanitizeFirestoreData(updatedMember)).catch(err =>
     handleFirestoreError(err, OperationType.UPDATE, `members/${id}`)
   );
 
@@ -203,7 +250,7 @@ export function bulkImportMembersLocal(
     const batch = writeBatch(db);
     createdItems.forEach(item => {
       const ref = doc(db, 'members', item.id);
-      batch.set(ref, item);
+      batch.set(ref, sanitizeFirestoreData(item));
     });
     batch.commit().catch(err => handleFirestoreError(err, OperationType.WRITE, 'members/bulk'));
   } catch (err) {
@@ -214,25 +261,52 @@ export function bulkImportMembersLocal(
 }
 
 // ================= EVENTS STORAGE =================
+const DELETED_EVENTS_STORAGE_KEY = 'pks_youth_deleted_events_v1';
+
+export function getDeletedEventIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DELETED_EVENTS_STORAGE_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+export function saveDeletedEventId(id: string): void {
+  try {
+    const set = getDeletedEventIds();
+    set.add(id);
+    localStorage.setItem(DELETED_EVENTS_STORAGE_KEY, JSON.stringify(Array.from(set)));
+  } catch (err) {
+    console.error('Failed to save deleted event id:', err);
+  }
+}
 
 export function loadEventsFromLocal(): EventItem[] {
   try {
+    const deletedIds = getDeletedEventIds();
     const raw = localStorage.getItem(EVENTS_STORAGE_KEY);
     if (!raw) {
-      localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(INITIAL_SEED_EVENTS));
-      return INITIAL_SEED_EVENTS;
+      const initial = INITIAL_SEED_EVENTS.filter(e => !deletedIds.has(e.id));
+      localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(initial));
+      return initial;
     }
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : INITIAL_SEED_EVENTS;
+    if (Array.isArray(parsed)) {
+      return parsed.filter(e => e && !deletedIds.has(e.id));
+    }
+    return [];
   } catch (err) {
     console.error('Error loading local events:', err);
-    return INITIAL_SEED_EVENTS;
+    return [];
   }
 }
 
 export function saveEventsToLocal(events: EventItem[], notify: boolean = true): void {
   try {
-    localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(events));
+    const deletedIds = getDeletedEventIds();
+    const filtered = events.filter(e => e && !deletedIds.has(e.id));
+    localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(filtered));
     if (notify) {
       window.dispatchEvent(new Event('pks_events_updated'));
     }
@@ -244,22 +318,43 @@ export function saveEventsToLocal(events: EventItem[], notify: boolean = true): 
 export function subscribeEventsFirestore(onUpdate: (events: EventItem[]) => void): () => void {
   const colRef = collection(db, 'events');
 
+  // Realtime subscribe to deleted events list from Firestore settings
+  const deletedDocRef = doc(db, 'settings', 'deleted_events');
+  onSnapshot(
+    deletedDocRef,
+    snap => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (Array.isArray(data.ids)) {
+          data.ids.forEach((id: string) => saveDeletedEventId(id));
+        }
+      }
+    },
+    () => {}
+  );
+
   const unsubscribe = onSnapshot(
     colRef,
     snapshot => {
+      const deletedIds = getDeletedEventIds();
+
       if (snapshot.empty) {
-        const initial = loadEventsFromLocal();
-        const batch = writeBatch(db);
-        initial.forEach(ev => {
-          const ref = doc(db, 'events', ev.id);
-          batch.set(ref, ev);
-        });
-        batch.commit().catch(err => handleFirestoreError(err, OperationType.WRITE, 'events'));
-        onUpdate(initial);
+        saveEventsToLocal([], false);
+        onUpdate([]);
         return;
       }
 
-      const firestoreEvents: EventItem[] = snapshot.docs.map(docSnap => docSnap.data() as EventItem);
+      const firestoreEvents: EventItem[] = [];
+      snapshot.docs.forEach(docSnap => {
+        const ev = docSnap.data() as EventItem;
+        if (deletedIds.has(ev.id) || deletedIds.has(docSnap.id)) {
+          // Proactively remove resurrected ghost event from cloud
+          deleteDoc(docSnap.ref).catch(() => {});
+        } else {
+          firestoreEvents.push(ev);
+        }
+      });
+
       firestoreEvents.sort(
         (a, b) => new Date(b.waktu).getTime() - new Date(a.waktu).getTime()
       );
@@ -293,7 +388,7 @@ export function addEventLocal(
   const updatedList = [eventObj, ...currentList];
   saveEventsToLocal(updatedList);
 
-  setDoc(doc(db, 'events', id), eventObj).catch(err =>
+  setDoc(doc(db, 'events', id), sanitizeFirestoreData(eventObj)).catch(err =>
     handleFirestoreError(err, OperationType.WRITE, `events/${id}`)
   );
 
@@ -301,15 +396,35 @@ export function addEventLocal(
 }
 
 export function deleteEventLocal(id: string): boolean {
+  saveDeletedEventId(id);
   const currentList = loadEventsFromLocal();
   const filtered = currentList.filter(e => e.id !== id);
-  if (filtered.length === currentList.length) return false;
 
   saveEventsToLocal(filtered);
 
   deleteDoc(doc(db, 'events', id)).catch(err =>
     handleFirestoreError(err, OperationType.DELETE, `events/${id}`)
   );
+
+  // Sync to settings/deleted_events in Firestore so all devices know it is deleted
+  setDoc(
+    doc(db, 'settings', 'deleted_events'),
+    { ids: arrayUnion(id) },
+    { merge: true }
+  ).catch(err => handleFirestoreError(err, OperationType.WRITE, 'settings/deleted_events'));
+
+  // Also clean up attendances for this event
+  const attList = loadAttendancesFromLocal();
+  const remainingAtt = attList.filter(a => a.eventId !== id);
+  const deletedAtt = attList.filter(a => a.eventId === id);
+  if (deletedAtt.length > 0) {
+    saveAttendancesToLocal(remainingAtt);
+    deletedAtt.forEach(att => {
+      deleteDoc(doc(db, 'event_attendances', att.id)).catch(err =>
+        handleFirestoreError(err, OperationType.DELETE, `event_attendances/${att.id}`)
+      );
+    });
+  }
 
   return true;
 }
@@ -351,16 +466,8 @@ export function subscribeAttendancesFirestore(
     colRef,
     snapshot => {
       if (snapshot.empty) {
-        const initial = loadAttendancesFromLocal();
-        const batch = writeBatch(db);
-        initial.forEach(att => {
-          const ref = doc(db, 'event_attendances', att.id);
-          batch.set(ref, att);
-        });
-        batch.commit().catch(err =>
-          handleFirestoreError(err, OperationType.WRITE, 'event_attendances')
-        );
-        onUpdate(initial);
+        saveAttendancesToLocal([], false);
+        onUpdate([]);
         return;
       }
 
@@ -434,7 +541,15 @@ export function subscribeTagsFirestore(
         const data = snapshot.data();
         const skills: string[] = Array.isArray(data.skills) ? data.skills : [];
         const hobbies: string[] = Array.isArray(data.hobbies) ? data.hobbies : [];
-        const organizations: string[] = Array.isArray(data.organizations) ? data.organizations : [];
+        const organizations: string[] = Array.isArray(data.organizations)
+          ? Array.from(
+              new Set(
+                data.organizations.map((o: string) =>
+                  typeof o === 'string' && o.toUpperCase().includes('BPPM') ? 'Kepemudaan' : o
+                )
+              )
+            )
+          : [];
 
         localStorage.setItem(CUSTOM_SKILLS_KEY, JSON.stringify(skills));
         localStorage.setItem(CUSTOM_HOBBIES_KEY, JSON.stringify(hobbies));
@@ -516,7 +631,14 @@ export function getCustomOrganizations(): string[] {
     const raw = localStorage.getItem(CUSTOM_ORGS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return Array.from(
+      new Set(
+        parsed.map(o =>
+          typeof o === 'string' && o.toUpperCase().includes('BPPM') ? 'Kepemudaan' : o
+        )
+      )
+    ).filter(Boolean);
   } catch {
     return [];
   }
@@ -525,12 +647,19 @@ export function getCustomOrganizations(): string[] {
 export function getAllOrganizations(): string[] {
   const custom = getCustomOrganizations();
   const combined = Array.from(new Set([...ORGANISASI_LIST, ...custom])).filter(Boolean);
-  return combined;
+  return Array.from(
+    new Set(
+      combined.map(o =>
+        typeof o === 'string' && o.toUpperCase().includes('BPPM') ? 'Kepemudaan' : o
+      )
+    )
+  );
 }
 
 export function saveCustomOrganization(org: string, adminName?: string): void {
-  const clean = org.trim();
+  let clean = org.trim();
   if (!clean) return;
+  if (clean.toUpperCase().includes('BPPM')) clean = 'Kepemudaan';
   const existing = getCustomOrganizations();
   if (!existing.some(o => o.toLowerCase() === clean.toLowerCase())) {
     const updated = [...existing, clean];

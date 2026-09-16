@@ -9,9 +9,9 @@ Tgl Lahir : dd/mm/yyyy
 Alamat lengkap : 
 Pendidikan Terakhir/saat ini : 
 Jurusan : 
-Aktivitas Utama : 
-Keahlian : 
-Hobi : 
+Aktivitas / Pekerjaan : 
+Keahlian (bisa lebih dari 1) : 
+Hobi (bisa lebih dari 1) : 
 Instagram : 
 Tiktok : `;
 
@@ -254,9 +254,9 @@ export function parseWhatsAppFormText(text: string): ParsedWAMember {
     { key: 'alamat', regex: /^[*_~#\s\d.)-]*(?:alamat\s*lengkap|alamat|domisili|tempat\s*tinggal|lokasi)\s*[*_~]*\s*[:=\-]\s*[*_~]*/i },
     { key: 'pendidikan', regex: /^[*_~#\s\d.)-]*(?:pendidikan\s*terakhir\/saat\s*ini|pendidikan\s*terakhir|pendidikan\s*saat\s*ini|pendidikan|jenjang\s*pendidikan)\s*[*_~]*\s*[:=\-]\s*[*_~]*/i },
     { key: 'jurusan', regex: /^[*_~#\s\d.)-]*(?:jurusan|program\s*studi|prodi)\s*[*_~]*\s*[:=\-]\s*[*_~]*/i },
-    { key: 'aktivitas', regex: /^[*_~#\s\d.)-]*(?:aktivitas\s*utama|aktivitas|pekerjaan|kesibukan|profesi|kegiatan)\s*[*_~]*\s*[:=\-]\s*[*_~]*/i },
-    { key: 'keahlian', regex: /^[*_~#\s\d.)-]*(?:keahlian|skill|keterampilan|potensi)\s*[*_~]*\s*[:=\-]\s*[*_~]*/i },
-    { key: 'hobi', regex: /^[*_~#\s\d.)-]*(?:hobi|minat|kegemaran)\s*[*_~]*\s*[:=\-]\s*[*_~]*/i },
+    { key: 'aktivitas', regex: /^[*_~#\s\d.)-]*(?:aktivitas\s*(?:\/|\s+dan\s+)?\s*pekerjaan|aktivitas\s*utama|aktivitas|pekerjaan|kesibukan|profesi|kegiatan)\s*[*_~]*\s*[:=\-]\s*[*_~]*/i },
+    { key: 'keahlian', regex: /^[*_~#\s\d.)-]*(?:keahlian\s*(?:\(bisa\s+lebih\s+dari\s+1\))?|skill|keterampilan|potensi)\s*[*_~]*\s*[:=\-]\s*[*_~]*/i },
+    { key: 'hobi', regex: /^[*_~#\s\d.)-]*(?:hobi\s*(?:\(bisa\s+lebih\s+dari\s+1\))?|minat|kegemaran)\s*[*_~]*\s*[:=\-]\s*[*_~]*/i },
     { key: 'instagram', regex: /^[*_~#\s\d.)-]*(?:instagram|ig)\s*[*_~]*\s*[:=\-]\s*[*_~]*/i },
     { key: 'tiktok', regex: /^[*_~#\s\d.)-]*(?:tiktok|tt|tik\s*tok)\s*[*_~]*\s*[:=\-]\s*[*_~]*/i },
     { key: 'email', regex: /^[*_~#\s\d.)-]*(?:email|surel)\s*[*_~]*\s*[:=\-]\s*[*_~]*/i },
@@ -373,7 +373,9 @@ export function parseWhatsAppFormText(text: string): ParsedWAMember {
   if (rawOrganisasi) {
     const orgItems = parseListItems(rawOrganisasi);
     if (orgItems.length > 0) {
-      organisasiInternal = orgItems;
+      organisasiInternal = Array.from(
+        new Set(orgItems.map(o => (o.toUpperCase().includes('BPPM') ? 'Kepemudaan' : o)))
+      );
     }
   }
 

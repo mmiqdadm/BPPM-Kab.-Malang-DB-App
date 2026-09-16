@@ -70,6 +70,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
   const [allOrgs, setAllOrgs] = useState<string[]>(getAllOrganizations());
 
   const [errors, setErrors] = useState<{ nama?: string }>({});
+  const [formError, setFormError] = useState<string | null>(null);
   const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[]>([]);
   const [pendingPayload, setPendingPayload] = useState<Omit<Member, 'id' | 'createdAt' | 'updatedAt'> | null>(null);
 
@@ -82,6 +83,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
     setAllOrgs(getAllOrganizations());
     setDuplicateMatches([]);
     setPendingPayload(null);
+    setFormError(null);
     setShowQuickWAPaste(false);
     setQuickWAText('');
     if (initialMember) {
@@ -282,7 +284,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       hobi,
       pembinaan,
       jenjangPembinaan: pembinaan === 'Sudah' ? jenjangPembinaan : undefined,
-      namaPembina: pembinaan === 'Sudah' && namaPembina.trim() ? namaPembina.trim() : undefined,
+      namaPembina: pembinaan === 'Sudah' ? (namaPembina.trim() || 'belum tahu') : undefined,
       catatanTambahan: catatanTambahan.trim(),
       createdBy: initialMember?.createdBy || adminName,
     };
@@ -323,11 +325,12 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
     }
 
     try {
+      setFormError(null);
       onSave(payload, initialMember && 'id' in initialMember ? initialMember.id : undefined);
-    } catch (err) {
-      console.error('Error saving member:', err);
-    } finally {
       onClose();
+    } catch (err: any) {
+      console.error('Error saving member:', err);
+      setFormError(err?.message || 'Gagal menyimpan data anggota.');
     }
   };
 
@@ -348,7 +351,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
               </span>
             </h3>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
-              BPPM PKS Kab. Malang
+              Kepemudaan PKS Kab. Malang
             </p>
           </div>
           <div className="flex items-center space-x-2">
@@ -377,6 +380,15 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
 
         {/* Scrollable Form Body */}
         <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-6 overflow-y-auto flex-1">
+          {formError && (
+            <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-start space-x-2.5 animate-in fade-in duration-150">
+              <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-bold text-red-800">Gagal Menyimpan Data Anggota</p>
+                <p className="text-[11px] mt-0.5 text-red-600 leading-relaxed">{formError}</p>
+              </div>
+            </div>
+          )}
           {/* Collapsible Quick WA Paste Panel */}
           {showQuickWAPaste && (
             <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-orange-50 border border-orange-200 rounded-xl p-4 space-y-3 animate-in fade-in duration-200">
@@ -546,7 +558,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
           {/* Section 2: Organisasi Internal & Pembinaan */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
             <div className="text-xs font-bold text-amber-600 uppercase tracking-wider flex items-center space-x-1.5 border-b border-slate-200 pb-2">
-              <Sparkles className="w-4 h-4" />
+              <GraduationCap className="w-4 h-4" />
               <span>Organisasi Internal & Pembinaan</span>
             </div>
 
@@ -622,7 +634,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                 {pembinaan === 'Sudah' && (
                   <div className="mt-3 p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl space-y-3 animate-in fade-in duration-200">
                     <div className="text-[11px] font-bold text-amber-800 uppercase tracking-wider flex items-center space-x-1.5 border-b border-amber-200/80 pb-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                      <Award className="w-3.5 h-3.5 text-amber-600" />
                       <span>Detail Pembinaan Kader</span>
                     </div>
 
@@ -645,14 +657,17 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          Nama Pembina
-                        </label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-xs font-semibold text-slate-700">
+                            Nama Pembina
+                          </label>
+                          <span className="text-[10px] text-amber-700 font-medium">Otomatis 'belum tahu' jika kosong</span>
+                        </div>
                         <input
                           type="text"
                           value={namaPembina}
                           onChange={e => setNamaPembina(e.target.value)}
-                          placeholder="Nama Pembina / Mentor"
+                          placeholder="Nama Pembina / Mentor (kosongkan jika belum tahu)"
                           className="w-full bg-white border border-slate-200 focus:border-[#F27D26] text-slate-900 text-xs font-medium rounded-lg p-2.5 outline-none"
                         />
                       </div>
@@ -1018,14 +1033,17 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                   onClick={() => {
                     if (pendingPayload) {
                       try {
+                        setFormError(null);
                         onSave(pendingPayload, initialMember && 'id' in initialMember ? initialMember.id : undefined);
-                      } catch (err) {
+                        setDuplicateMatches([]);
+                        setPendingPayload(null);
+                        onClose();
+                      } catch (err: any) {
                         console.error('Error saving member payload:', err);
+                        setFormError(err?.message || 'Gagal menyimpan data anggota.');
+                        setDuplicateMatches([]);
                       }
                     }
-                    setDuplicateMatches([]);
-                    setPendingPayload(null);
-                    onClose();
                   }}
                   className="px-5 py-2 bg-[#F27D26] hover:bg-orange-600 text-white text-xs font-bold rounded-xl shadow-md transition-all"
                 >

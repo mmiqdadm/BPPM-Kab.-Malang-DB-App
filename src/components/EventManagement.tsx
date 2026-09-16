@@ -243,7 +243,7 @@ export const EventManagement: React.FC<EventManagementProps> = ({
           email: '',
           domisili: row.domisili || 'Kepanjen',
           alamatDetail: '',
-          aktivitas: 'Peserta Event BPPM',
+          aktivitas: 'Peserta Event Kepemudaan',
           pendidikan: 'S1',
           jurusan: '',
           keahlian: [],

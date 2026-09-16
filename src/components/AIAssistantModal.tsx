@@ -80,7 +80,7 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
     {
       id: 'welcome',
       sender: 'ai',
-      text: `Halo! Saya **Asisten AI Analitis Database Anggota BPPM PKS Kab. Malang**.\n\nSaya dapat membantu Anda mencari data spesifik, menganalisis keahlian & hobi, memetakan domisili, atau mengecek kualifikasi anggota.\n\nContoh pertanyaan:\n- *"Siapa saja anggota yang punya keahlian Videografi atau Public Speaking?"*\n- *"Cari anggota di Kecamatan Kepanjen yang berpendidikan S1"*\n- *"Tampilkan daftar anggota dari organisasi IPNU"*`,
+      text: `Halo! Saya **Asisten AI Analitis Database Anggota Kepemudaan PKS Kab. Malang**.\n\nSaya dapat membantu Anda mencari data spesifik, menganalisis keahlian & hobi, memetakan domisili, atau mengecek kualifikasi anggota.\n\nContoh pertanyaan:\n- *"Siapa saja anggota yang punya keahlian Videografi atau Public Speaking?"*\n- *"Cari anggota di Kecamatan Kepanjen yang berpendidikan S1"*\n- *"Tampilkan daftar anggota dari organisasi IPNU"*`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);

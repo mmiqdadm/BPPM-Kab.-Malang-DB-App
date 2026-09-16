@@ -278,7 +278,7 @@ export const AdminManagementModal: React.FC<AdminManagementModalProps> = ({
             <Shield className="w-5 h-5 text-amber-500" />
             <div>
               <h3 className="text-lg font-bold text-slate-900">Pengaturan Sekretariat & Admin</h3>
-              <p className="text-xs text-slate-500 font-medium">Khusus Pengurus / Super Admin BPPM</p>
+              <p className="text-xs text-slate-500 font-medium">Khusus Pengurus / Super Admin Kepemudaan</p>
             </div>
           </div>
           <button

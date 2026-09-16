@@ -42,7 +42,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               <div>
                 <div className="flex items-center space-x-1.5">
                   <span className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">
-                    BPPM
+                    Kepemudaan
                   </span>
                   <span className="bg-orange-50 text-[#F27D26] border border-orange-200 text-[10px] font-bold px-1.5 py-0.2 rounded-md">
                     Kab. Malang

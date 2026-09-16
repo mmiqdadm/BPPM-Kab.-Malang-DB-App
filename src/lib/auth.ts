@@ -12,7 +12,7 @@ const CURRENT_SESSION_KEY = 'pks_youth_session_v1';
 export const SUPER_ADMIN_DEFAULT: Omit<AdminUser, 'passwordHash'> & { defaultPassword: string } = {
   id: 'AdminSuper',
   username: 'AdminSuper',
-  name: 'Super Admin BPPM',
+  name: 'Super Admin Kepemudaan',
   defaultPassword: 'M1q17417SuperAdmin',
   role: 'superadmin',
   createdAt: '2026-01-01T00:00:00.000Z',

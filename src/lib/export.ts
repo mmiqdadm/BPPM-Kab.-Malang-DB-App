@@ -78,7 +78,7 @@ export function exportMembersToExcel(members: Member[], filenamePrefix = 'Databa
   XLSX.writeFile(workbook, `${filenamePrefix}_${dateStamp}.xlsx`);
 }
 
-export function exportMembersToPDF(members: Member[], reportTitle = 'LAPORAN DATABASE ANGGOTA BPPM PKS KAB. MALANG'): void {
+export function exportMembersToPDF(members: Member[], reportTitle = 'LAPORAN DATABASE ANGGOTA KEPEMUDAAN PKS KAB. MALANG'): void {
   const doc = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
@@ -92,7 +92,7 @@ export function exportMembersToPDF(members: Member[], reportTitle = 'LAPORAN DAT
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
-  doc.text('BPPM PARTAI KEADILAN SEJAHTERA KABUPATEN MALANG', 14, 12);
+  doc.text('KEPEMUDAAN PARTAI KEADILAN SEJAHTERA KABUPATEN MALANG', 14, 12);
 
   doc.setTextColor(30, 41, 59);
   doc.setFontSize(12);
@@ -180,7 +180,7 @@ export function exportSingleMemberCardPDF(m: Member): void {
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
-  doc.text('BIODATA ANGGOTA BPPM PKS KAB. MALANG', 14, 12);
+  doc.text('BIODATA ANGGOTA KEPEMUDAAN PKS KAB. MALANG', 14, 12);
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.text(`ID Register: ${m.id}`, 14, 18);
@@ -245,7 +245,7 @@ export function exportSingleMemberCardPDF(m: Member): void {
   // Footer
   doc.setFontSize(8);
   doc.setTextColor(148, 163, 184);
-  doc.text(`Dokumen resmi Sekretariat BPPM PKS Kab. Malang - Dicetak ${new Date().toLocaleString('id-ID')}`, 14, 285);
+  doc.text(`Dokumen resmi Sekretariat Kepemudaan PKS Kab. Malang - Dicetak ${new Date().toLocaleString('id-ID')}`, 14, 285);
 
   const cleanName = m.nama.replace(/[^a-zA-Z0-9]/g, '_');
   doc.save(`Biodata_${cleanName}_PKS_Muda.pdf`);

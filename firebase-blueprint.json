@@ -94,7 +94,7 @@
     },
     "admin": {
       "title": "AdminUser",
-      "description": "Akun admin sekretariat BPPM PKS",
+      "description": "Akun admin sekretariat Kepemudaan PKS",
       "type": "object",
       "properties": {
         "username": {
