@@ -500,7 +500,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                   onChange={e => setJenisKelamin(e.target.value as JenisKelaminType)}
                   className="w-full bg-white border border-slate-200 focus:border-[#F27D26] text-slate-900 text-sm rounded-xl px-3.5 py-2.5 outline-none font-medium"
                 >
-                  <option value="-">- (Belum Diisi)</option>
+                  <option value="-"> - </option>
                   <option value="Pria">Pria</option>
                   <option value="Wanita">Wanita</option>
                 </select>

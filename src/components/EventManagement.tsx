@@ -398,7 +398,7 @@ export const EventManagement: React.FC<EventManagementProps> = ({
             <span>Sistem Presensi & Manajemen Event</span>
           </div>
           <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">
-            Event & Kehadiran Anggota Youth Wing
+            Event & Absensi Kepemudaan
           </h2>
           <p className="text-xs text-slate-200 max-w-xl">
             Buat kegiatan baru, catat daftar hadir secara real-time. Peserta baru otomatis
